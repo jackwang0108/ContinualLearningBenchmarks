@@ -6,11 +6,11 @@ from typing import Literal, Callable
 import numpy as np
 
 # Torch Library
-from torch.utils.data import DataLoader
+from torch.utils.data import Dataset, DataLoader
 
 # My Library
-import data.cifar100 as cifar100
-from transforms import UnifiedTransforms
+from .data import cifar100 as cifar100
+from .transforms import UnifiedTransforms
 
 
 def get_cls_name(dataset: Literal["cifar100"]) -> list[str]:
@@ -20,7 +20,7 @@ def get_cls_name(dataset: Literal["cifar100"]) -> list[str]:
         raise NotImplementedError
 
 
-def get_tasks(dataset: Literal["cifar100"], cls_names: list[str], task_num: int, fixed_tasks: bool) -> list[list[str]]:
+def get_tasks(dataset: Literal["cifar100"], cls_names: list[str], task_num: int, fixed_tasks: bool) -> list[list[str] | tuple[list[str], list[str]]]:
     if dataset == "cifar100":
         return cifar100.get_cifar100_tasks(cls_names, task_num, fixed_tasks)
     else:
@@ -32,6 +32,13 @@ def get_task_data_getter(dataset: Literal["cifar100"], split: Literal["train", "
         return cifar100.get_task_data_getter(split)
 
 
+def get_dataset(dataset: Literal["cifar100"]) -> type[cifar100.Cifar100Dataset]:
+    if dataset == "cifar100":
+        return cifar100.Cifar100Dataset
+    else:
+        raise NotImplementedError
+
+
 class CLDatasetGetter():
     def __init__(
         self,
@@ -40,13 +47,31 @@ class CLDatasetGetter():
         fixed_task: bool = False
     ) -> None:
 
+        self.dataset = dataset
         self.task_num = task_num
         self.fixed_task = fixed_task
 
-        cls_name = get_cls_name(dataset)
+        cls_names = get_cls_name(dataset)
 
-        self.tasks = get_tasks(dataset, cls_name, task_num, fixed_task)
+        self.tasks = get_tasks(
+            dataset, cls_names, task_num, fixed_task)
+        self.num_cls_per_task = len(self.tasks[0])
 
+        reordered_cls_names = [
+            cls_name for task in self.tasks for cls_name in task]
+        self.cls_id_mapper = dict(enumerate(reordered_cls_names))
+
+        # For datasets with label given, the task may shuffle the classes and re-assign a new class id
+        self.id_mapper = None
+        if dataset in ["cifar100"]:
+            origin_cls_name_mapper = {
+                cls_name: cls_id for cls_id, cls_name in enumerate(cls_names)}
+            reordered_cls_name_mapper = {
+                cls_name: cls_id for cls_id, cls_name in enumerate(reordered_cls_names)}
+            self.id_mapper = {origin_cls_name_mapper[cls_name]:
+                              reordered_cls_name_mapper[cls_name] for cls_name in cls_names}
+
+        self.val_data_getter = get_task_data_getter(dataset, "val")
         self.test_data_getter = get_task_data_getter(dataset, "test")
         self.train_data_getter = get_task_data_getter(dataset, "train")
 
@@ -54,30 +79,43 @@ class CLDatasetGetter():
             is_eval=False, use_crop_transform=False, same_crop_transform=False)
         self.test_transform = UnifiedTransforms(
             is_eval=True, use_crop_transform=False, same_crop_transform=False)
+        self.val_transform = UnifiedTransforms(
+            is_eval=True, use_crop_transform=False, same_crop_transform=False)
+
+        self.learned_tasks = []
 
         self.task_id = 0
 
     def __iter__(self):
         return self
 
-    def __next__(self) -> tuple[int, list[str], cifar100.Cifar100Dataset, cifar100.Cifar100Dataset]:
+    def __next__(self) -> tuple[int, list[str], Dataset, Dataset]:
         if self.task_id >= len(self.tasks):
             raise StopIteration
 
         current_task = self.tasks[self.task_id]
+
         task_images_train, task_labels_train = self.train_data_getter(
-            current_task)
+            current_task, self.id_mapper)
+        task_images_val, task_labels_val = self.val_data_getter(
+            current_task, self.id_mapper)
 
+        self.learned_tasks.append(current_task)
+        test_classes = [
+            cls_name for learned_task in self.learned_tasks for cls_name in learned_task]
         task_images_test, task_labels_test = self.test_data_getter(
-            current_task)
+            test_classes, self.id_mapper)
 
-        train_dataset = cifar100.Cifar100Dataset(
+        dataset = get_dataset(self.dataset)
+        train_dataset = dataset(
             task_images_train, task_labels_train, self.train_transform)
-        test_dataset = cifar100.Cifar100Dataset(
+        test_dataset = dataset(
             task_images_test, task_labels_test, self.test_transform)
+        val_dataset = dataset(
+            task_images_val, task_labels_val, self.val_transform)
 
         self.task_id += 1
-        return self.task_id - 1, current_task, train_dataset, test_dataset
+        return self.task_id - 1, current_task, test_classes, train_dataset, val_dataset, test_dataset
 
 
 if __name__ == "__main__":
