@@ -71,15 +71,13 @@ class CLDatasetGetter():
             self.id_mapper = {origin_cls_name_mapper[cls_name]:
                               reordered_cls_name_mapper[cls_name]for cls_name in cls_names}
 
-        self.val_data_getter = get_task_data_getter(dataset, "val")
+        # self.val_data_getter = get_task_data_getter(dataset, "val")
         self.test_data_getter = get_task_data_getter(dataset, "test")
         self.train_data_getter = get_task_data_getter(dataset, "train")
 
         self.train_transform = UnifiedTransforms(
             is_eval=False, use_crop_transform=False, same_crop_transform=False)
         self.test_transform = UnifiedTransforms(
-            is_eval=True, use_crop_transform=False, same_crop_transform=False)
-        self.val_transform = UnifiedTransforms(
             is_eval=True, use_crop_transform=False, same_crop_transform=False)
 
         self.learned_tasks = []
@@ -95,30 +93,24 @@ class CLDatasetGetter():
 
         current_task = self.tasks[self.task_id]
 
+        self.learned_tasks.append(current_task)
+
+        # get train and test data
         task_images_train, task_labels_train = self.train_data_getter(
             current_task, self.id_mapper)
-        task_images_val, task_labels_val = self.val_data_getter(
-            current_task, self.id_mapper)
 
-        self.learned_tasks.append(current_task)
-        # test_classes = [
-        #     cls_name for learned_task in self.learned_tasks for cls_name in learned_task]
-        # task_images_test, task_labels_test = self.test_data_getter(
-        #     test_classes, self.id_mapper)
         task_images_test, task_labels_test = self.test_data_getter(
             current_task, self.id_mapper)
 
+        # get dataset
         dataset = get_dataset(self.dataset)
         train_dataset = dataset(
             task_images_train, task_labels_train, self.train_transform)
         test_dataset = dataset(
             task_images_test, task_labels_test, self.test_transform)
-        val_dataset = dataset(
-            task_images_val, task_labels_val, self.val_transform)
 
         self.task_id += 1
-        # return self.task_id - 1, current_task, test_classes, train_dataset, val_dataset, test_dataset
-        return self.task_id - 1, current_task, None, train_dataset, val_dataset, test_dataset
+        return self.task_id - 1, current_task, train_dataset, test_dataset
 
 
 if __name__ == "__main__":

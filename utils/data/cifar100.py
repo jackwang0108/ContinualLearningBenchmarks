@@ -34,6 +34,7 @@ def get_cifar100_cls_names() -> list[str]:
 
 
 def get_data(split: Literal["train", "val", "test"]) -> tuple[np.ndarray, np.ndarray]:
+    # sourcery skip: remove-redundant-if
     file = CIFAR_PATH / ("test" if split == "test" else "train")
 
     with file.open(mode="rb") as f:
@@ -42,7 +43,8 @@ def get_data(split: Literal["train", "val", "test"]) -> tuple[np.ndarray, np.nda
     images = data[b"data"].reshape(-1, 3, 32, 32).transpose(0, 2, 3, 1)
     labels = np.array(data[b"fine_labels"], dtype=np.int64)
 
-    if split != "test":
+    # these codes are not used
+    if split != "test" and False:
         cls_id_mapper = {cls_name: cls_id for cls_id,
                          cls_name in enumerate(get_cifar100_cls_names())}
 
