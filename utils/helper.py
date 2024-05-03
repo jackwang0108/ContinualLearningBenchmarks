@@ -1,10 +1,18 @@
 # Standard Library
+import math
+from pathlib import Path
+from typing import Optional
 
 # Third-Party Library
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.axes import Axes
+from matplotlib.figure import Figure
 
 # Torch Library
 import torch
 import torch.nn.functional as F
+from torchvision.utils import make_grid
 
 
 def to_onehot(input: torch.FloatTensor, num_classes: int) -> torch.FloatTensor:
@@ -21,35 +29,45 @@ def get_pred(probas: torch.FloatTensor) -> torch.FloatTensor:
 
 
 @torch.no_grad()
-def get_acc(pred: torch.FloatTensor, gt: torch.FloatTensor, num_cls: int) -> torch.FloatTensor:
+def get_top1_acc(pred: torch.FloatTensor, gt: torch.FloatTensor, num_cls: int) -> torch.FloatTensor:
     gt = to_onehot(gt, num_cls)
     pred = to_onehot(pred, num_cls)
     correct = pred * gt
     return ((correct) != 0).sum() / pred.size(0)
 
 
+def plot_matrix(matrix: np.ndarray) -> Figure:
+    ax: Axes
+    fig: Figure
+    fig, ax = plt.subplots(figsize=(9, 9))
+    im = ax.imshow(matrix)
+    ax.set_xticks(np.arange(matrix.shape[1]), xticks := [
+                  f"Task {i}" for i in range(matrix.shape[1])])
+    ax.set_yticks(np.arange(matrix.shape[1]), yticks := [
+                  f"Task {i}" for i in range(matrix.shape[0])])
+    plt.setp(ax.get_xticklabels(), rotation=45, ha="right",
+             rotation_mode="anchor")
+    for i in range(len(yticks)):
+        for j in range(len(xticks)):
+            if i < j:
+                break
+            text = ax.text(i, j, f"{matrix[i, j]:.2f}", fontsize=12,
+                           ha="center", va="center", color="w")
+    fig.tight_layout()
+    return fig
+
+
+def draw_image(image: torch.FloatTensor, save_path: str | Path):
+    grid_image = make_grid(image.clone().cpu(), nrow=int(
+        math.sqrt(int(image.size(0)))))
+    plt.imshow(grid_image.permute(1, 2, 0))
+    plt.axis("off")
+    plt.savefig(str(save_path))
+
+
 if __name__ == "__main__":
-    from torch.utils.data import DataLoader
-    from .loader import CLDatasetGetter
-
-    dataset_getter = CLDatasetGetter(
-        dataset="cifar100", task_num=10, fixed_task=False)
-
-    learned_classes = 0
-    for task_id, cls_names, train_dataset, _, _ in dataset_getter:
-        train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
-
-        image: torch.FloatTensor
-        label: torch.FloatTensor
-
-        # learn the task
-        print(f"{task_id=}, {cls_names=}")
-        for image, label in train_loader:
-            print(image.shape)
-            print(label.shape)
-
-            onehot_label = to_onehot(
-                label, dataset_getter.num_cls_per_task + learned_classes)
-            print(onehot_label.shape)
-            break
-        learned_classes += len(cls_names)
+    # matrix = np.random.random((10, 10))
+    # plot_matrix(matrix)
+    # plt.savefig("./example.png")
+    images = torch.randn(16, 3, 32, 32)
+    draw_image(images, "./test.png")
