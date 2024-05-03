@@ -4,6 +4,9 @@ data/cifar-100-python/
 # ignore test.py
 test.py
 
+# ignore tensorboard
+log
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
