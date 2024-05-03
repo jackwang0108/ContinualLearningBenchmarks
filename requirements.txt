@@ -1,5 +1,6 @@
+matplotlib==3.8.4
 numpy==1.26.4
-torch==2.3.0+cu118
-torchvision==0.18.0+cu118
+torch==2.2.2+cu118
+torchvision==0.17.2+cu118
 
 clip @ git+https://github.com/openai/CLIP.git@main
