@@ -120,7 +120,7 @@ def get_cifar100_tasks(cls_names: list[str], task_num: int = 10, fixed_tasks: bo
     cls_num = len(cls_names) // task_num
     return [
         cls_names[i * cls_num: (i + 1) * cls_num]
-        for i in range(len(cls_names) // task_num)
+        for i in range(task_num)
     ]
 
 
