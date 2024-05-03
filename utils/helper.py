@@ -7,9 +7,25 @@ import torch
 import torch.nn.functional as F
 
 
-def to_onehot(label: torch.FloatTensor, num_classes: int, learned_class: int) -> torch.FloatTensor:
-    ori_size = label.size()
-    return F.one_hot(label.flatten(), num_classes=num_classes + learned_class).reshape(*ori_size, -1)
+def to_onehot(input: torch.FloatTensor, num_classes: int) -> torch.FloatTensor:
+    ori_size = input.size()
+    return F.one_hot(input.flatten(), num_classes=num_classes).reshape(*ori_size, -1)
+
+
+def get_probas(logits: torch.FloatTensor) -> torch.FloatTensor:
+    return F.softmax(logits, dim=-1)
+
+
+def get_pred(probas: torch.FloatTensor) -> torch.FloatTensor:
+    return probas.argmax(dim=-1)
+
+
+@torch.no_grad()
+def get_acc(pred: torch.FloatTensor, gt: torch.FloatTensor, num_cls: int) -> torch.FloatTensor:
+    gt = to_onehot(gt, num_cls)
+    pred = to_onehot(pred, num_cls)
+    correct = pred * gt
+    return ((correct) != 0).sum() / pred.size(0)
 
 
 if __name__ == "__main__":
@@ -33,7 +49,7 @@ if __name__ == "__main__":
             print(label.shape)
 
             onehot_label = to_onehot(
-                label, dataset_getter.num_cls_per_task, learned_classes)
+                label, dataset_getter.num_cls_per_task + learned_classes)
             print(onehot_label.shape)
             break
         learned_classes += len(cls_names)
