@@ -5,10 +5,10 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "debug data/cifar100.py",
+            "name": "debug model/finetune.py",
             "type": "debugpy",
             "request": "launch",
-            "module": "utils/data",
+            "module": "model.finetune",
             "console": "integratedTerminal"
         },
         {
