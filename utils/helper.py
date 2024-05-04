@@ -1,4 +1,5 @@
 # Standard Library
+import sys
 import math
 import itertools
 from pathlib import Path
@@ -7,14 +8,28 @@ from typing import Literal, Callable
 # Third-Party Library
 import numpy as np
 import seaborn as sns
+from loguru import logger
 import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
+from loguru._defaults import LOGURU_FORMAT
 
 # Torch Library
 import torch
 import torch.nn.functional as F
 from torchvision.utils import make_grid
+
+
+def get_logger(log_file: Path, with_time: bool = True):
+    global logger
+
+    logger.remove()
+    logger.add(log_file, level="DEBUG",
+               format=f"{'{time:YYYY-D-MMMM@HH:mm:ss}' if with_time else ''}│ {{message}}")
+    logger.add(sys.stderr, level="DEBUG",
+               format=f"{'{time:YYYY-D-MMMM@HH:mm:ss}' if with_time else ''}│ <level>{{message}}</level>")
+
+    return logger
 
 
 def to_onehot(input: torch.FloatTensor, num_classes: int) -> torch.FloatTensor:

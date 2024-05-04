@@ -1,6 +1,7 @@
 # Standard Library
 import datetime
-from typing import Callable
+from pathlib import Path
+from typing import Callable, Optional
 
 # Third-Party Library
 import numpy as np
@@ -14,8 +15,8 @@ from torch.utils.data import DataLoader
 
 # My Library
 from model import Model
-from model.LingoCL import LingoCL
 from model.finetune import Finetune
+from utils.helper import get_logger
 from utils.loader import CLDatasetGetter
 from utils.helper import get_probas, get_pred
 from utils.helper import plot_matrix, draw_image
@@ -27,7 +28,8 @@ from utils.helper import (get_top1_acc,
 
 rname = input("the name of this running: ")
 wname = f"{rname}-{datetime.datetime.now().strftime('%m-%d %H.%M')}"
-writer = SummaryWriter(f"log/{wname}")
+writer = SummaryWriter(log_dir := f"log/{wname}")
+logger = get_logger(Path(log_dir) / "running.log")
 device = torch.device("cuda:0")
 
 hparams_dict = {}
@@ -78,15 +80,15 @@ def get_task_learner() -> Callable[[int, int, Model, DataLoader, DataLoader], Mo
         loss_func = nn.CrossEntropyLoss()
         optimizer = optim.SGD(model.parameters(), lr=1e-3, momentum=0.9)
 
-        print_time = 5
-        num_epoch = 5
+        log_times = 5
+        num_epoch = 50
         for epoch in range(num_epoch):
             train_loss = train_epoch(model, train_loader, loss_func, optimizer)
             test_acc = test_epoch(model, test_loader, get_top1_acc,
                                   num_cls_per_task)
 
-            if epoch % (num_epoch // print_time) == 0:
-                print(
+            if (epoch + 1) % (num_epoch // log_times) == 0:
+                logger.info(
                     f"\tEpoch [{num_epoch}/{epoch+1:>{len(str(num_epoch))}d}], {train_loss=:.2f}, {test_acc=:.2f}")
 
             writer.add_scalar("task-learning/train-loss",
@@ -109,22 +111,25 @@ def get_task_learner() -> Callable[[int, int, Model, DataLoader, DataLoader], Mo
     return task_learner
 
 
-def get_continual_learning_ability_tester(task_num: int, num_cls_per_task: int) -> Callable[[int, list[list[str]], list[DataLoader], Model], np.ndarray]:
+def get_continual_learning_ability_tester(task_num: int, num_cls_per_task: int) -> Callable[[int, list[list[str]], list[DataLoader], Model], tuple[np.ndarray, Optional[dict[str, float]]]]:
 
     num_cls_per_task = num_cls_per_task
     cl_matrix = np.zeros((task_num, task_num))
 
     @torch.no_grad
-    def continual_learning_ability_tester(task_id: int, learned_tasks: list[list[str]], learned_task_loaders: list[DataLoader], model: Model) -> np.ndarray:
+    def continual_learning_ability_tester(task_id: int, learned_tasks: list[list[str]], learned_task_loaders: list[DataLoader], model: Model) -> tuple[np.ndarray, Optional[dict[str, float]]]:
         nonlocal cl_matrix, num_cls_per_task
 
         # test on all tasks, including previous and current task
         for i, previous_loader in enumerate(learned_task_loaders):
-            cl_matrix[i, task_id] = test_epoch(
-                model, previous_loader, get_top1_acc, num_cls_per_task)
 
-            print(f"\ttest on task {i}, test_acc={
-                  cl_matrix[i, task_id]:.2f}, {learned_tasks[i]}")
+            # using past classifier
+            # model.current_classifier = model.classifiers[i]
+            # cl_matrix[i, task_id] = test_epoch(
+            #     model, previous_loader, get_top1_acc, num_cls_per_task)
+
+            logger.info(f"\ttest on task {i}, test_acc={
+                cl_matrix[i, task_id]:.2f}, {learned_tasks[i]}")
 
         # calculate continual learning ability metrics and log to summarywriter
         if task_id >= 1:
@@ -156,12 +161,12 @@ def get_continual_learning_ability_tester(task_num: int, num_cls_per_task: int) 
 
         # draw heatmap of cl_matrix and log to summarywriter
         writer.add_figure(
-            tag="cl_matrix",
+            tag=f"cl_matrix/{wname}",
             figure=plot_matrix(cl_matrix, task_id),
             global_step=task_id,
         )
 
-        return cl_matrix, {"hparam/bwt": bwt, "hparam/forgetting-rate": forget, "hparam/last-step-acc": last, "hparam/average-acc": avg} if task_id >= 1 else None
+        return cl_matrix, {"BWT": bwt, "Forgetting Rate": forget, "Last Step Acc": last, "Average Acc": avg} if task_id >= 1 else None
 
     return continual_learning_ability_tester
 
@@ -171,14 +176,20 @@ def continual_learning():
     dataset_getter = CLDatasetGetter(
         dataset="cifar100", task_num=10, fixed_task=False)
 
-    model = LingoCL().to(device)
+    model = Finetune().to(device)
+
+    # logging
+    logger.info(f"Model: {model.__class__.__name__}")
+    logger.info("Task List:")
+    for task_id, task in enumerate(dataset_getter.tasks):
+        logger.info(f"\tTask {task_id}: {task}")
 
     # get task learner and cl-ability tester
     task_learner = get_task_learner()
     task_learner: Callable[[int, int, Model, DataLoader, DataLoader], Model]
 
     continual_learning_ability_tester: Callable[[
-        int, list[list[str]], list[DataLoader], Finetune], np.ndarray]
+        int, list[list[str]], list[DataLoader], Finetune], tuple[np.ndarray, Optional[dict[str, float]]]]
     continual_learning_ability_tester = get_continual_learning_ability_tester(
         dataset_getter.task_num, dataset_getter.num_cls_per_task)
 
@@ -192,9 +203,14 @@ def continual_learning():
         # learn the new task
         with model.set_new_task(current_task):
 
-            print(f"{task_id=}, {current_task=}")
+            logger.success(f"{task_id=}, {current_task=}")
             model = task_learner(
                 task_id, dataset_getter.num_cls_per_task, model, train_loader, test_loader)
+
+            # fix the feature extractor
+            if task_id == 0:
+                for param in model.feature_extractor.parameters():
+                    param.requires_grad = False
 
         # save the test loader for continual learning testing
         learned_tasks.append(current_task)
@@ -207,7 +223,16 @@ def continual_learning():
         if metrics is not None:
             metrics_dict.update(metrics)
 
+            logger.debug(
+                "\t " + ", ".join([f"{key}={value:.2f}" for key, value in metrics.items()]))
+
     # writer.add_hparams(hparams_dict, metrics_dict)
+
+    logger.info(f"Task learned: {dataset_getter.tasks}")
+    logger.info("Continual Learning Performance:")
+    for key, value in metrics_dict.items():
+        logger.info(f"\t{key}: {value}")
+    logger.success("Finished Training")
 
 
 if __name__ == "__main__":
