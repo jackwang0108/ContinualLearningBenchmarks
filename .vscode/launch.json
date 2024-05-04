@@ -5,6 +5,13 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "debug utils/helper.py",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "utils.helper",
+            "console": "integratedTerminal"
+        },
+        {
             "name": "debug model/finetune.py",
             "type": "debugpy",
             "request": "launch",
