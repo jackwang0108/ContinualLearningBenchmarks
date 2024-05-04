@@ -58,5 +58,3 @@ if __name__ == "__main__":
 
     model = Finetune()
     model = model.to("cuda:0")
-
-    print(model.device)
