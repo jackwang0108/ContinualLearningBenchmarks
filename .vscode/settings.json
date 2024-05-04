@@ -1,10 +1,16 @@
 {
     "cSpell.words": [
+        "annot",
+        "cbar",
         "fontsize",
         "nrow",
         "probas",
+        "probs",
         "Seedable",
         "setp",
-        "tensorboard"
+        "tensorboard",
+        "vmax",
+        "vmin",
+        "yticklabels"
     ]
 }
