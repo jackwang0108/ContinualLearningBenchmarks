@@ -46,6 +46,7 @@ class CLDatasetGetter():
         dataset: Literal["cifar100"],
         task_num: int = 10,
         fixed_task: bool = False,
+        given_tasks: Optional[list[str]] = None,
         transform: Optional[nn.Module | bool] = None
     ) -> None:
 
@@ -55,8 +56,11 @@ class CLDatasetGetter():
 
         cls_names = get_cls_name(dataset)
 
-        self.tasks = get_tasks(
-            dataset, cls_names, task_num, fixed_task)
+        if fixed_task:
+            self.tasks = get_tasks(dataset, cls_names, task_num, fixed_task)
+        else:
+            self.tasks = get_tasks(
+                dataset, cls_names, task_num, fixed_task) if given_tasks is None else given_tasks
         self.num_cls_per_task = len(self.tasks[0])
 
         reordered_cls_names = [
