@@ -1,11 +1,12 @@
 # Standard Library
 from pathlib import Path
-from typing import Literal, Callable
+from typing import Literal, Callable, Optional
 
 # Third-Party Library
 import numpy as np
 
 # Torch Library
+import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 
 # My Library
@@ -44,7 +45,8 @@ class CLDatasetGetter():
         self,
         dataset: Literal["cifar100"],
         task_num: int = 10,
-        fixed_task: bool = False
+        fixed_task: bool = False,
+        transform: Optional[nn.Module | bool] = None
     ) -> None:
 
         self.dataset = dataset
@@ -75,10 +77,11 @@ class CLDatasetGetter():
         self.test_data_getter = get_task_data_getter(dataset, "test")
         self.train_data_getter = get_task_data_getter(dataset, "train")
 
-        self.train_transform = UnifiedTransforms(
-            is_eval=False, use_crop_transform=False, same_crop_transform=False)
-        self.test_transform = UnifiedTransforms(
-            is_eval=True, use_crop_transform=False, same_crop_transform=False)
+        if transform or transform is None:
+            self.train_transform = UnifiedTransforms(
+                is_eval=False, use_crop_transform=False, same_crop_transform=False)
+            self.test_transform = UnifiedTransforms(
+                is_eval=True, use_crop_transform=False, same_crop_transform=False)
 
         self.learned_tasks = []
 
