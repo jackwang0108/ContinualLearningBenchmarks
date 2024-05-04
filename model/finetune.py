@@ -46,6 +46,7 @@ class Finetune(nn.Module):
 
     def forward(self, image: torch.FloatTensor) -> torch.FloatTensor:
         # sourcery skip: inline-immediately-returned-variable
+        features: torch.FloatTensor
         features = self.feature_extractor(image)
         logits = self.current_classifier(features)
         return logits
@@ -56,28 +57,6 @@ if __name__ == "__main__":
     from torch.utils.data import DataLoader
 
     model = Finetune()
-    print(f"{model.feature_dim=}")
+    model = model.to("cuda:0")
 
-    dataset_getter = CLDatasetGetter(
-        dataset="cifar100", task_num=10, fixed_task=False)
-
-    for task_id, current_task, test_classes, train_dataset, val_dataset, test_dataset in dataset_getter:
-        train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
-        val_loader = DataLoader(val_dataset, batch_size=32, shuffle=False)
-        test_loader = DataLoader(test_dataset, batch_size=32, shuffle=False)
-
-        image: torch.FloatTensor
-        label: torch.FloatTensor
-
-        model = model.set_new_task(current_task)
-
-        # learn the task
-        for image, label in train_loader:
-            print(image.shape)
-            print(label.shape)
-
-            pred = model(image)
-
-            print(f"{task_id=}, {pred.shape=}")
-
-            break
+    print(model.device)
