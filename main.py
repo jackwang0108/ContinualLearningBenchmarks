@@ -208,9 +208,9 @@ def continual_learning():
                 task_id, dataset_getter.num_cls_per_task, model, train_loader, test_loader)
 
             # fix the feature extractor
-            if task_id == 0:
-                for param in model.feature_extractor.parameters():
-                    param.requires_grad = False
+            # if task_id == 0:
+            #     for param in model.feature_extractor.parameters():
+            #         param.requires_grad = False
 
         # save the test loader for continual learning testing
         learned_tasks.append(current_task)
@@ -228,6 +228,7 @@ def continual_learning():
 
     # writer.add_hparams(hparams_dict, metrics_dict)
 
+    # log
     logger.info(f"Task learned: {dataset_getter.tasks}")
     logger.info("Continual Learning Performance:")
     for key, value in metrics_dict.items():
