@@ -19,8 +19,8 @@ class Finetune(nn.Module):
         self.feature_dim = self.feature_extractor.fc.in_features
         self.feature_extractor.fc = nn.Identity()
 
-        self.classifiers: list[nn.Module] = []
-        self.current_classifier: nn.Module = None
+        self.classifiers: list[nn.Linear] = []
+        self.current_classifier: nn.Linear = None
 
         self.learned_classes = []
 
@@ -53,7 +53,7 @@ class Finetune(nn.Module):
 
 
 if __name__ == "__main__":
-    from utils.loader import CLDatasetGetter
+    from utils.datasets import CLDatasetGetter
     from torch.utils.data import DataLoader
 
     model = Finetune()
