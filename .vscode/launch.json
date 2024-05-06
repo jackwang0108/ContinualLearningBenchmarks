@@ -5,17 +5,24 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "debug utils/helper.py",
+            "name": "debug utils",
             "type": "debugpy",
             "request": "launch",
-            "module": "utils.helper",
+            "module": "utils.${fileBasenameNoExtension}",
             "console": "integratedTerminal"
         },
         {
-            "name": "debug model/finetune.py",
+            "name": "debug model",
             "type": "debugpy",
             "request": "launch",
-            "module": "model.finetune",
+            "module": "model.${fileBasenameNoExtension}",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "debug src",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "src.${fileBasenameNoExtension}",
             "console": "integratedTerminal"
         },
         {
