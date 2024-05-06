@@ -55,37 +55,27 @@ def train_epoch(model: iCaRL, train_loader: DataLoader, loss_func: nn.Module, op
     loss: torch.FloatTensor
     image: torch.FloatTensor
     label: torch.LongTensor
-    new_image: torch.FloatTensor
-    new_label: torch.FloatTensor
-    learned_image: torch.FloatTensor
     for image, label in train_loader:
-
-        # split learned classes and new classes
-        learned_mask = label < len(model.learned_classes)
-        new_mask = ~learned_mask
+        image = image.to(device)
+        label = to_onehot(label, total_num_classes).to(device)
 
         # for new classes, use cross entropy loss
-        new_image = image[new_mask].to(device)
-        new_label = to_onehot(label[new_mask], total_num_classes).to(device)
-
-        logits = model(new_image)
-        classification_loss = classify_loss_func(logits, new_label)
+        logits = model(image)
+        classification_loss = classify_loss_func(logits, label)
 
         # for learned classes, use distillation loss, be cautious for the first task, there are no learned classes
         distillation_loss = torch.zeros_like(classification_loss)
-        if len(model.learned_classes) > 1 and learned_mask.any():
-            learned_image = image[learned_mask].to(device)
+        if len(model.learned_classes) > 1:
 
             # get the logits of last model, i.e., teacher logits
             with torch.no_grad():
-                model.current_weight_vectors = model.weight_vectors[-2]
-                # [B, Number of Learned Classes]
-                teacher_logits = model(learned_image)
-                model.current_weight_vectors = model.weight_vectors[-1]
+                with model.use_previous_model():
+                    # [B, Number of Learned Classes]
+                    teacher_logits = model(image)
 
             # get the logits of current model, i.e., student logits
             # [B, Number of Learned Classes + Number of Current Classes]
-            student_logits = model(learned_image)
+            student_logits = model(image)
 
             # Note: iCaRL gives the logits as below, this mainly change the output logits to probability distribution
             # ref: Page 2, Architecture, Paragraph 2, Line 8: "The resulting network outputs are..."
