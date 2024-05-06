@@ -1,8 +1,11 @@
 {
     "cSpell.words": [
         "annot",
+        "avgpool",
         "cbar",
         "fontsize",
+        "maxpool",
+        "nblocks",
         "nrow",
         "probas",
         "probs",
