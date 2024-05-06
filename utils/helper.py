@@ -19,6 +19,9 @@ import torch
 import torch.nn.functional as F
 from torchvision.utils import make_grid
 
+# My Library
+from .annotation import MetricFunc
+
 
 def get_logger(log_file: Path, with_time: bool = True):
     global logger
@@ -34,7 +37,7 @@ def get_logger(log_file: Path, with_time: bool = True):
 
 def to_onehot(input: torch.FloatTensor, num_classes: int) -> torch.FloatTensor:
     ori_size = input.size()
-    return F.one_hot(input.flatten(), num_classes=num_classes).reshape(*ori_size, -1)
+    return F.one_hot(input.flatten(), num_classes=num_classes).reshape(*ori_size, -1).float()
 
 
 def get_probas(logits: torch.FloatTensor) -> torch.FloatTensor:
@@ -43,6 +46,16 @@ def get_probas(logits: torch.FloatTensor) -> torch.FloatTensor:
 
 def get_pred(probas: torch.FloatTensor) -> torch.FloatTensor:
     return probas.argmax(dim=-1)
+
+
+class CLMetrics():
+    def __init__(self, metrics: dict[str, MetricFunc]) -> None:
+        self.metrics = metrics
+
+    def __call__(self, cl_matrix: np.ndarray, reduction: Literal["mean", "none"] = "mean") -> dict[str, float | np.ndarray]:
+        return {
+            metric_name: metric_func(cl_matrix, reduction) for metric_name, metric_func in self.metrics.items()
+        }
 
 
 def _reduction(array: np.ndarray, reduction: Literal["mean", "none"] = "mean") -> float | np.ndarray:
@@ -141,8 +154,9 @@ if __name__ == "__main__":
 
     cl_matrix = np.random.random((10, 10))
 
-    plot_matrix(cl_matrix, 2)
-    plt.savefig("./example.png")
+    # plot_matrix(cl_matrix, 2)
+    # plt.savefig("./example.png")
 
-    # print(get_backward_transfer(cl_matrix))
+    bwt = get_backward_transfer(cl_matrix)
+    print(bwt)
     # print(get_forgetting_rate(cl_matrix))
