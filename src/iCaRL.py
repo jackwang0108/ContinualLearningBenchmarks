@@ -1,7 +1,7 @@
 # Standard Library
 import datetime
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Optional
 
 # Third-Party Library
 import numpy as np
@@ -14,7 +14,6 @@ from torch.utils.tensorboard import SummaryWriter
 from torch.utils.data import DataLoader
 
 # My Library
-from model import Model
 from model.iCaRL import iCaRL
 from utils.helper import get_logger
 from utils.datasets import get_dataset
@@ -27,8 +26,14 @@ from utils.helper import (get_top1_acc,
                           get_backward_transfer,
                           get_last_setp_accuracy,
                           get_average_incremental_accuracy,
-                          get_forgetting_rate)
+                          get_forgetting_rate,
+                          CLMetrics)
 from utils.annotation import SupportedDataset, Images, Labels
+from utils.annotation import (
+    TaskLearner,
+    PerformanceFunc,
+    CLAbilityTester,
+)
 
 rname = input("the name of this running: ")
 wname = f"{rname}-{datetime.datetime.now().strftime('%m-%d %H.%M')}"
@@ -37,7 +42,6 @@ logger = get_logger(Path(log_dir) / "running.log")
 device = torch.device("cuda:0")
 
 hparams_dict = {}
-metrics_dict = {}
 
 # TODO: icaRL的蒸馏损失
 # TODO: 把各种回调函数的类型放到annotation里面
@@ -101,7 +105,7 @@ def train_epoch(model: iCaRL, train_loader: DataLoader, loss_func: nn.Module, op
 
 
 @torch.no_grad()
-def test_epoch(model: iCaRL, test_loader: DataLoader, perf_func: Callable[[torch.FloatTensor, torch.FloatTensor, int], torch.FloatTensor], num_cls_per_task: int) -> tuple[torch.FloatTensor, torch.FloatTensor]:
+def test_epoch(model: iCaRL, test_loader: DataLoader, perf_func: PerformanceFunc, num_cls_per_task: int) -> tuple[torch.FloatTensor, torch.FloatTensor]:
     performance = []
 
     # Note: iCaRL use Nearest-Mean-of-Exemplars to classify, here using output logits just for monitor the learning
@@ -187,17 +191,19 @@ def build_exemplar_set(dataset: SupportedDataset, cls_name: str, cls_id: int, ex
     return cls_images[exemplar_idx], cls_labels[exemplar_idx]
 
 
-def get_task_learner() -> Callable[[int, int, Model, DataLoader, DataLoader], Model]:
+def get_task_learner() -> TaskLearner:
     num_task_learned = 0
 
-    def task_learner(task_id: int, current_task: list[str], num_cls_per_task: int, model: iCaRL, train_loader: DataLoader, test_loader: DataLoader) -> Model:
+    def task_learner(task_id: int, current_task: list[str], num_cls_per_task: int, model: iCaRL, train_loader: DataLoader, test_loader: DataLoader) -> iCaRL:
 
         loss_func = nn.CrossEntropyLoss()
-        optimizer = optim.SGD(model.parameters(), lr=1e-3, momentum=0.9)
-        # optimizer = optim.Adam(model.parameters(), lr=2e-3, weight_decay=1e-5)
+
+        # Note: very weird, if use SGD, the performance is much more weaker than use Adam
+        # optimizer = optim.SGD(model.parameters(), lr=1e-3, momentum=0.9)
+        optimizer = optim.Adam(model.parameters(), lr=2e-3, weight_decay=1e-5)
 
         log_times = 5
-        num_epoch = 5
+        num_epoch = 70
         for epoch in range(num_epoch):
             train_loss = train_epoch(model, train_loader, loss_func, optimizer)
 
@@ -231,14 +237,21 @@ def get_task_learner() -> Callable[[int, int, Model, DataLoader, DataLoader], Mo
     return task_learner
 
 
-def get_continual_learning_ability_tester(task_num: int, num_cls_per_task: int) -> Callable[[int, list[list[str]], list[DataLoader], Model], tuple[np.ndarray, Optional[dict[str, float]]]]:
+def get_continual_learning_ability_tester(task_num: int, num_cls_per_task: int) -> CLAbilityTester:
 
     num_cls_per_task = num_cls_per_task
     cl_matrix = np.zeros((task_num, task_num))
 
+    metrics_getter = CLMetrics({
+        "Backward Transfer": get_backward_transfer,
+        "Forgetting Rate": get_forgetting_rate,
+        "Last Step Accuracy": get_last_setp_accuracy,
+        "Average Incremental Accuracy": get_average_incremental_accuracy,
+    })
+
     @ torch.no_grad
     def continual_learning_ability_tester(task_id: int, learned_tasks: list[list[str]], learned_task_loaders: list[DataLoader], model: iCaRL) -> tuple[np.ndarray, Optional[dict[str, float]]]:
-        nonlocal cl_matrix, num_cls_per_task
+        nonlocal cl_matrix, num_cls_per_task, metrics_getter
 
         # test on all tasks, including previous and current task
         for i, previous_loader in enumerate(learned_task_loaders):
@@ -264,30 +277,17 @@ def get_continual_learning_ability_tester(task_num: int, num_cls_per_task: int) 
         # calculate continual learning ability metrics and log to summarywriter
         if task_id >= 1:
             current_cl_matrix = cl_matrix[:task_id+1, :task_id+1]
-            writer.add_scalar(
-                tag="continual-learning-metrics/backward-transfer",
-                scalar_value=(bwt := get_backward_transfer(current_cl_matrix)),
-                global_step=task_id,
-            )
-            writer.add_scalar(
-                tag="continual-learning-metrics/forgetting-rate",
-                scalar_value=(
-                    forget := get_forgetting_rate(current_cl_matrix)),
-                global_step=task_id,
-            )
-            writer.add_scalar(
-                tag="continual-learning-metrics/last-step-accuracy",
-                scalar_value=(
-                    last := get_last_setp_accuracy(current_cl_matrix)),
-                global_step=task_id,
-            )
-            writer.add_scalar(
-                tag="continual-learning-metrics/average-incremental-accuracy",
-                scalar_value=(avg := get_average_incremental_accuracy(
-                    current_cl_matrix
-                )),
-                global_step=task_id,
-            )
+
+            current_metrics = metrics_getter(current_cl_matrix, "mean")
+
+            # log to summarywriter
+            for metric_name, metric_value in current_metrics.items():
+                if isinstance(metric_value, (float, int)):
+                    writer.add_scalar(
+                        tag=f"Continual Learning Metrics/{metric_name}",
+                        scalar_value=metric_value,
+                        global_step=task_id
+                    )
 
         # draw heatmap of cl_matrix and log to summarywriter
         writer.add_figure(
@@ -296,7 +296,7 @@ def get_continual_learning_ability_tester(task_num: int, num_cls_per_task: int) 
             global_step=task_id,
         )
 
-        return cl_matrix, {"BWT": bwt, "Forgetting Rate": forget, "Last Step Acc": last, "Average Acc": avg} if task_id >= 1 else None
+        return cl_matrix, current_metrics if task_id >= 1 else None
 
     return continual_learning_ability_tester
 
@@ -320,12 +320,9 @@ def continual_learning():
         logger.info(f"\tTask {task_id}: {task}")
 
     # get task learner and cl-ability tester
-    task_learner = get_task_learner()
-    task_learner: Callable[[int, int, Model, DataLoader, DataLoader], Model]
+    task_learner: TaskLearner = get_task_learner()
 
-    continual_learning_ability_tester: Callable[[
-        int, list[list[str]], list[DataLoader], iCaRL], tuple[np.ndarray, Optional[dict[str, float]]]]
-    continual_learning_ability_tester = get_continual_learning_ability_tester(
+    continual_learning_ability_tester: CLAbilityTester = get_continual_learning_ability_tester(
         dataset_getter.task_num, dataset_getter.num_cls_per_task)
 
     train_dataset: Cifar100Dataset
@@ -393,8 +390,6 @@ def continual_learning():
             task_id, learned_tasks, learned_task_loaders, model)
 
         if metrics is not None:
-            metrics_dict.update(metrics)
-
             logger.debug(
                 "\t " + ", ".join([f"{key}={value:.2f}" for key, value in metrics.items()]))
 
@@ -407,7 +402,7 @@ def continual_learning():
 
     # log continual learning metrics
     logger.debug("Continual Learning Performance:")
-    for key, value in metrics_dict.items():
+    for key, value in metrics.items():
         logger.info(f"\t{key}: {value}")
 
     logger.info(f"Task learned: {dataset_getter.tasks}")
