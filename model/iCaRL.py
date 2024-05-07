@@ -60,7 +60,7 @@ class iCaRL(nn.Module):
         self.current_weight_vectors = nn.Linear(
             in_features=self.feature_dim, out_features=num_cls + len(self.learned_classes), bias=False).to(device=self.feature_extractor.conv1.weight.device)
 
-        # for the second task, save the last feature extractor and copy the weights of last weight vectors
+        # for the second task, copy the weights of last weight vectors
         if len(self.weight_vectors) > 0:
 
             # copy the weight of previous weight vector

@@ -42,7 +42,7 @@ rname = input("the name of this running: ")
 wname = f"{rname}-{datetime.datetime.now().strftime('%m-%d %H.%M')}"
 writer = SummaryWriter(log_dir := f"log/{wname}")
 logger = get_logger(Path(log_dir) / "running.log")
-device = torch.device("cuda:3")
+device = torch.device("cuda:0")
 
 hparams_dict = {}
 
@@ -290,7 +290,7 @@ def get_task_learner() -> TaskLearner:
             optimizer, milestones=[49, 63], gamma=0.2)
 
         log_times = 5
-        num_epoch = 5
+        num_epoch = 70
         for epoch in range(num_epoch):
             train_loss = train_epoch(model, train_loader, loss_func, optimizer)
 
@@ -398,7 +398,7 @@ def get_continual_learning_ability_tester(task_num: int, num_cls_per_task: int) 
 def continual_learning():
 
     dataset_getter = CLDatasetGetter(
-        dataset="cifar100", task_num=10, fixed_task=True)
+        dataset="cifar100", task_num=10, fixed_task=False)
 
     model: iCaRL
     model = iCaRL().to(device)
