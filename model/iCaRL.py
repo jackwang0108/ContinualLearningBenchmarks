@@ -17,10 +17,10 @@ from utils.annotation import Task
 
 class iCaRL(nn.Module):
 
-    def __init__(self, feature_dim: int = 2048) -> None:
+    def __init__(self, feature_dim: int = 512) -> None:
         super().__init__()
-        self.feature_extractor: ResNet = models.resnet18(
-            weights=models.ResNet18_Weights.DEFAULT)
+        self.feature_extractor: ResNet = models.resnet34(
+            weights=models.ResNet34_Weights.DEFAULT)
 
         # Note: when input batched image is [1, C, H, W], resnet will be wrong for Resnet._forward_impl.layer4(x)
         # Note: this is because the maxpool layer. So, remove the maxpool
@@ -28,9 +28,13 @@ class iCaRL(nn.Module):
         self.feature_extractor.maxpool = nn.Identity()
 
         # map the features from feature space into prototype space
-        self.feature_extractor.fc = nn.Linear(
-            self.feature_extractor.fc.in_features, feature_dim)
-        self.feature_dim = self.feature_extractor.fc.out_features
+        self.feature_extractor.fc = nn.Sequential(
+            nn.Linear(self.feature_extractor.fc.in_features, feature_dim),
+            # nn.BatchNorm1d(feature_dim, momentum=0.01),
+            # nn.ReLU(),
+        )
+
+        self.feature_dim = feature_dim
 
         self.previous_feature_extractor: ResNet = None
 
@@ -50,24 +54,46 @@ class iCaRL(nn.Module):
         num_cls = len(task)
         self.current_task = task
 
+        # before the start learning the task, expand the weight vectors
+
         # create new weight vectors
         self.current_weight_vectors = nn.Linear(
             in_features=self.feature_dim, out_features=num_cls + len(self.learned_classes), bias=False).to(device=self.feature_extractor.conv1.weight.device)
 
-        if len(self.weight_vectors) != 0:
+        # for the second task, save the last feature extractor and copy the weights of last weight vectors
+        if len(self.weight_vectors) > 0:
+
+            # copy the weight of previous weight vector
             previous_weight_vector = self.weight_vectors[-1]
 
             self.current_weight_vectors.weight.data[:len(
                 self.learned_classes), :] = previous_weight_vector.weight.data[:, :]
 
-        self.weight_vectors.append(self.current_weight_vectors)
-
-        # copy the last feature extractor
-        self.previous_feature_extractor = copy.deepcopy(self.feature_extractor)
-
         try:
             yield self
         finally:
+            # after the task, save the feature extractor and weight vectors
+
+            # freeze the current weight vector and switch to evaluation mode
+            for param in self.current_weight_vectors.parameters():
+                param.requires_grad = False
+
+            self.current_weight_vectors.eval()
+
+            # save the current weight vectors
+            self.weight_vectors.append(self.current_weight_vectors)
+
+            # copy the last feature extractor
+            self.previous_feature_extractor = copy.deepcopy(
+                self.feature_extractor)
+
+            # freeze previous feature extractor and switch to evaluation mode
+            for param in self.previous_feature_extractor.parameters():
+                param.requires_grad = False
+
+            self.previous_feature_extractor.eval()
+
+            # expand the learned classes
             self.learned_classes.extend(task)
 
     @contextmanager
@@ -77,7 +103,7 @@ class iCaRL(nn.Module):
 
         try:
             self.feature_extractor = feature_extractor if feature_extractor is not None else self.previous_feature_extractor
-            self.current_weight_vectors = weight_vectors if weight_vectors is not None else self.weight_vectors[-2]
+            self.current_weight_vectors = weight_vectors if weight_vectors is not None else self.weight_vectors[-1]
             yield self
         finally:
             self.feature_extractor = current_feature_extractor
