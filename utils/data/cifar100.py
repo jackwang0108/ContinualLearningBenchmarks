@@ -156,13 +156,12 @@ class Cifar100Dataset(Dataset):
         self.labels = labels
         self.transforms = transforms
 
-        self.to_tensor = torchvision.transforms.ToTensor()
-
     def __len__(self) -> int:
         return len(self.labels)
 
     def __getitem__(self, index: int) -> tuple[torch.FloatTensor, torch.FloatTensor]:
-        image = self.to_tensor(self.images[index])
+        # get image
+        image = self.images[index]
 
         # data augmentation
         image = self.augment(image)

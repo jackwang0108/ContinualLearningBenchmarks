@@ -13,7 +13,7 @@ from torch.utils.data import Dataset, DataLoader
 
 # My Library
 from .data import cifar100 as cifar100
-from .transforms import UnifiedTransforms
+from .transforms import UnifiedTransforms, get_transforms
 from .annotation import Images, Labels, Task, Split, SupportedDataset, TorchDatasetImplementation, TaskDataGetter, ClassDataGetter
 
 
@@ -129,6 +129,7 @@ class CLDatasetGetter():
         given_tasks: Optional[list[Task]] = None,
         transform: Optional[nn.Module] = None
     ) -> None:
+        # sourcery skip: assign-if-exp
 
         self.dataset = dataset
         self.task_num = task_num
@@ -154,11 +155,18 @@ class CLDatasetGetter():
         self.test_task_data_getter = get_task_data_getter(dataset, "test")
         self.train_task_data_getter = get_task_data_getter(dataset, "train")
 
-        # get transforms
-        self.train_transform = UnifiedTransforms(
-            is_eval=False, use_crop_transform=False, same_crop_transform=False) if transform is not None else None
-        self.test_transform = UnifiedTransforms(
-            is_eval=True, use_crop_transform=False, same_crop_transform=False) if transform is not None else None
+        # use default transforms
+        if transform is None:
+            if dataset == "cifar100":
+                crop_size = 32
+            else:
+                crop_size = 224
+
+            self.train_transform, self.test_transform = get_transforms(
+                dataset=dataset,
+                crop_size=crop_size,
+                same_crop=False,
+            )
 
         self.learned_tasks = []
 
@@ -199,13 +207,19 @@ class CLDatasetGetter():
 
 
 if __name__ == "__main__":
+    import torch
     from .helper import draw_image
 
     dataset_getter = CLDatasetGetter("cifar100", 10, False, transform=None)
 
+    train_dataset: cifar100.Cifar100Dataset
+    test_dataset: cifar100.Cifar100Dataset
     for task_id, cls_names, train_dataset, test_dataset in dataset_getter:
         train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
         test_loader = DataLoader(test_dataset, batch_size=32, shuffle=False)
+
+        draw_image(torch.from_numpy(train_dataset.images[:16]).permute(
+            0, 3, 1, 2), "./dataset.png")
 
         print(f"{task_id=}, {cls_names=}")
         for image, label in train_loader:
