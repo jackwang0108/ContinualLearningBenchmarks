@@ -68,10 +68,9 @@ def _reduction(array: np.ndarray, reduction: Literal["mean", "none"] = "mean") -
 
 
 def get_backward_transfer(cl_matrix: np.ndarray, reduction: Literal["mean", "none"] = "mean") -> float | np.ndarray:
-
+    cl_matrix = cl_matrix.copy()
     R_ii = np.diag(cl_matrix)[:-1]
     R_iN = cl_matrix[:-1, -1]
-
     return _reduction(R_iN - R_ii, reduction)
 
 
@@ -81,11 +80,13 @@ def get_forward_transfer(unlearned_perf: np.ndarray, cl_matrix: np.ndarray, redu
 
 
 def get_last_setp_accuracy(cl_matrix: np.ndarray, reduction: Literal["mean", "none"] = "mean") -> float | np.ndarray:
+    cl_matrix = cl_matrix.copy()
     R_iN = cl_matrix[:, -1]
     return _reduction(R_iN, reduction)
 
 
 def get_average_incremental_accuracy(cl_matrix: np.ndarray, reduction: Literal["mean", "none"] = "mean") -> float | np.ndarray:
+    cl_matrix = cl_matrix.copy()
     last_step_accuracies = [
         get_last_setp_accuracy(cl_matrix[:i, :i], "mean")
         for i in range(1, cl_matrix.shape[0])
@@ -95,11 +96,10 @@ def get_average_incremental_accuracy(cl_matrix: np.ndarray, reduction: Literal["
 
 
 def get_forgetting_rate(cl_matrix: np.ndarray, reduction: Literal["mean", "none"] = "mean") -> float | np.ndarray:
+    cl_matrix = cl_matrix.copy()
     cl_matrix = cl_matrix[:-1, :]
-
     R_iN = cl_matrix[:, -1]
     R_i = np.max(cl_matrix[:, :-1], axis=1)
-
     return _reduction(R_i - R_iN, reduction)
 
 
@@ -112,6 +112,7 @@ def get_top1_acc(pred: torch.FloatTensor, gt: torch.FloatTensor, num_cls: int) -
 
 
 def plot_matrix(cl_matrix: np.ndarray, current_task_id: int) -> Figure:
+    cl_matrix = cl_matrix.copy()
     mask = np.zeros_like(cl_matrix, dtype=bool)
     mask[np.tril_indices_from(cl_matrix, k=-1)] = True
 
