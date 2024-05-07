@@ -1,7 +1,7 @@
 # Standard Library
 import datetime
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Optional
 
 # Third-Party Library
 import numpy as np
@@ -146,10 +146,8 @@ def get_continual_learning_ability_tester(task_num: int, num_cls_per_task: int) 
         # test on all tasks, including previous and current task
         for i, previous_loader in enumerate(learned_task_loaders):
 
-            # using past classifier
-            # model.current_classifier = model.classifiers[i]
-            # cl_matrix[i, task_id] = test_epoch(
-            #     model, previous_loader, get_top1_acc, num_cls_per_task)
+            cl_matrix[i, task_id] = test_epoch(
+                model, previous_loader, get_top1_acc, num_cls_per_task)
 
             logger.info(f"\ttest on task {i}, test_acc={
                 cl_matrix[i, task_id]:.2f}, {learned_tasks[i]}")

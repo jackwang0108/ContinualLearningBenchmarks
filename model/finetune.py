@@ -8,6 +8,9 @@ import torch
 import torch.nn as nn
 import torchvision.models as models
 
+# My Library
+from utils.annotation import Task
+
 
 class Finetune(nn.Module):
 
@@ -22,11 +25,13 @@ class Finetune(nn.Module):
         self.classifiers: list[nn.Linear] = []
         self.current_classifier: nn.Linear = None
 
+        self.current_task: Task = None
         self.learned_classes = []
 
     @contextmanager
     def set_new_task(self, task: list[str]):
         num_cls = len(task)
+        self.current_task = task
 
         self.current_classifier = nn.Linear(
             in_features=self.feature_dim, out_features=num_cls + len(self.learned_classes)).to(device=self.feature_extractor.conv1.weight.device)
