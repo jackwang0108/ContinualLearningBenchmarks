@@ -2,7 +2,7 @@
 
 # My Library
 from .iCaRL import iCaRL
-from .LingoCL import LingoCL
+from .LingoCL import *
 from .finetune import Finetune
 
-Model = Finetune | LingoCL
+Model = Finetune | iCaRL | iCaRL_LingoCL
