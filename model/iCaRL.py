@@ -69,32 +69,32 @@ class iCaRL(nn.Module):
             self.current_weight_vectors.weight.data[:len(
                 self.learned_classes), :] = previous_weight_vector.weight.data[:, :]
 
-        try:
-            yield self
-        finally:
-            # after the task, save the feature extractor and weight vectors
+        # return to task learning
+        yield self
 
-            # freeze the current weight vector and switch to evaluation mode
-            for param in self.current_weight_vectors.parameters():
-                param.requires_grad = False
+        # after the task, save the feature extractor and weight vectors
 
-            self.current_weight_vectors.eval()
+        # freeze the current weight vector and switch to evaluation mode
+        for param in self.current_weight_vectors.parameters():
+            param.requires_grad = False
 
-            # save the current weight vectors
-            self.weight_vectors.append(self.current_weight_vectors)
+        self.current_weight_vectors.eval()
 
-            # copy the last feature extractor
-            self.previous_feature_extractor = copy.deepcopy(
-                self.feature_extractor)
+        # save the current weight vectors
+        self.weight_vectors.append(self.current_weight_vectors)
 
-            # freeze previous feature extractor and switch to evaluation mode
-            for param in self.previous_feature_extractor.parameters():
-                param.requires_grad = False
+        # copy the last feature extractor
+        self.previous_feature_extractor = copy.deepcopy(
+            self.feature_extractor)
 
-            self.previous_feature_extractor.eval()
+        # freeze previous feature extractor and switch to evaluation mode
+        for param in self.previous_feature_extractor.parameters():
+            param.requires_grad = False
 
-            # expand the learned classes
-            self.learned_classes.extend(task)
+        self.previous_feature_extractor.eval()
+
+        # expand the learned classes
+        self.learned_classes.extend(task)
 
     @contextmanager
     def use_previous_model(self, feature_extractor: Optional[ResNet] = None, weight_vectors: Optional[nn.Linear] = None):
