@@ -12,8 +12,8 @@ import numpy as np
 # Torch Library
 import torch
 import torch.nn as nn
-import torchvision.transforms
 from torch.utils.data import Dataset
+from torchvision.datasets.utils import check_integrity, download_and_extract_archive
 
 # My Library
 from ..annotation import Task, Images, Labels, Split, ClassDataGetter
@@ -22,19 +22,41 @@ from ..annotation import Task, Images, Labels, Split, ClassDataGetter
 CIFAR_PATH: Path = (Path(__file__).resolve() /
                     "../../../data/cifar-100-python").resolve()
 
+CIFAR_INFO = {
+    "url": "https://www.cs.toronto.edu/~kriz/cifar-100-python.tar.gz",
+    "filename": "cifar-100-python.tar.gz",
+    "tgz_md5": "eb9058c3a382ffc7106e4002c42a8d85",
+    "file_list": [
+        ["train", "16019d7e3df5f24257cddd939b257f8d"],
+        ["test", "f0ef6b0ae62326f3e7ffdfab6717acfc"],
+        ["meta",  "7973b15100ade9c7d40fb424638fde48"]
+    ]
+}
+
 
 @lru_cache(maxsize=1)
-def check_cifar100(assertion: bool = True) -> bool:
-    if assertion:
-        assert CIFAR_PATH.exists(
-        ), f"Cifar100 is not downloaded! Please downloaded Cifar100 and extract to {CIFAR_PATH.relative_to(Path(__file__).parent.parent.parent.resolve())}"
-    return CIFAR_PATH.exists()
+def check_and_download_cifar100() -> bool:
+    if not CIFAR_PATH.exists():
+        download_and_extract_archive(
+            url=CIFAR_INFO['url'],
+            extract_root=CIFAR_PATH.parent,
+            download_root=CIFAR_PATH.parent,
+            filename=CIFAR_INFO["filename"],
+            md5=CIFAR_INFO["tgz_md5"],
+            remove_finished=True
+        )
+
+    assert all(
+        check_integrity(CIFAR_PATH / path, md5) for path, md5 in CIFAR_INFO['file_list']
+    ), "Dataset file not found or corrupted. Download it again or remove it first"
+
+    return True
 
 
 @lru_cache(maxsize=1)
 def get_cifar100_cls_names() -> list[str]:
 
-    check_cifar100(assertion=True)
+    check_and_download_cifar100()
 
     meta = CIFAR_PATH / "meta"
     with meta.open(mode="rb") as f:
