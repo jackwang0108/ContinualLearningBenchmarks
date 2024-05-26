@@ -4,6 +4,7 @@
         "avgpool",
         "cbar",
         "fontsize",
+        "LUCIR",
         "maxpool",
         "nblocks",
         "nrow",
