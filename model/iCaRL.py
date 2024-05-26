@@ -13,9 +13,10 @@ from torchvision.models.resnet import ResNet
 
 # My Library
 from utils.annotation import Task
+from .base import ContinualLearningModel
 
 
-class iCaRL(nn.Module):
+class iCaRL(nn.Module, ContinualLearningModel):
 
     def __init__(self, feature_dim: int = 512) -> None:
         super().__init__()
@@ -30,12 +31,11 @@ class iCaRL(nn.Module):
         # map the features from feature space into prototype space
         self.feature_extractor.fc = nn.Sequential(
             nn.Linear(self.feature_extractor.fc.in_features, feature_dim),
-            # nn.BatchNorm1d(feature_dim, momentum=0.01),
-            # nn.ReLU(),
         )
 
         self.feature_dim = feature_dim
 
+        # after learning the current task, the mean of exemplar sets need to be recalculated, so we need to save the current feature extractor
         self.previous_feature_extractor: ResNet = None
 
         # Note: iCaRL uses weight vectors for representation learning, not classification
@@ -47,7 +47,7 @@ class iCaRL(nn.Module):
         self.exemplar_means: dict[str, torch.FloatTensor] = {}
 
         self.current_task: Task = None
-        self.learned_classes = []
+        self.learned_classes: list[str] = []
 
     @contextmanager
     def set_new_task(self, task: Task):

@@ -35,9 +35,14 @@ def get_logger(log_file: Path, with_time: bool = True):
     return logger
 
 
-def to_onehot(input: torch.FloatTensor, num_classes: int) -> torch.FloatTensor:
-    ori_size = input.size()
-    return F.one_hot(input.flatten(), num_classes=num_classes).reshape(*ori_size, -1).float()
+def to_khot(index: torch.IntTensor, num_classes: int) -> torch.IntTensor:
+    # process if index is 1-dimensional, i.e. [batch_size]
+    if index.ndim == 1:
+        index = index.unsqueeze(dim=1)
+
+    khot = torch.zeros(index.size(0), num_classes)
+    khot.scatter_(1, index, 1)
+    return khot
 
 
 def get_probas(logits: torch.FloatTensor) -> torch.FloatTensor:
@@ -104,11 +109,11 @@ def get_forgetting_rate(cl_matrix: np.ndarray, reduction: Literal["mean", "none"
 
 
 @torch.no_grad()
-def get_top1_acc(pred: torch.FloatTensor, gt: torch.FloatTensor, num_cls: int) -> torch.FloatTensor:
-    gt = to_onehot(gt, num_cls)
-    pred = to_onehot(pred, num_cls)
-    correct = pred * gt
-    return ((correct) != 0).sum() / pred.size(0)
+def get_top1_acc(top1_pred: torch.FloatTensor, gt: torch.FloatTensor, num_cls: int) -> torch.FloatTensor:
+    gt = to_khot(gt, num_cls)
+    top1_pred = to_khot(top1_pred, num_cls)
+    correct = top1_pred * gt
+    return ((correct) != 0).sum() / top1_pred.size(0)
 
 
 def plot_matrix(cl_matrix: np.ndarray, current_task_id: int) -> Figure:

@@ -10,9 +10,10 @@ import torchvision.models as models
 
 # My Library
 from utils.annotation import Task
+from .base import ContinualLearningModel
 
 
-class Finetune(nn.Module):
+class Finetune(nn.Module, ContinualLearningModel):
 
     def __init__(self) -> None:
         super().__init__()
@@ -26,7 +27,7 @@ class Finetune(nn.Module):
         self.current_classifier: nn.Linear = None
 
         self.current_task: Task = None
-        self.learned_classes = []
+        self.learned_classes: list[str] = []
 
     @contextmanager
     def set_new_task(self, task: list[str]):
@@ -44,10 +45,11 @@ class Finetune(nn.Module):
 
         self.classifiers.append(self.current_classifier)
 
-        try:
-            yield self
-        finally:
-            self.learned_classes.extend(task)
+        # return to task learning
+        yield self
+
+        # expand the learned classes
+        self.learned_classes.extend(task)
 
     def forward(self, image: torch.FloatTensor) -> torch.FloatTensor:
         # sourcery skip: inline-immediately-returned-variable
@@ -62,4 +64,4 @@ if __name__ == "__main__":
     from torch.utils.data import DataLoader
 
     model = Finetune()
-    model = model.to("cuda:0")
+    model = model.to("mps")
