@@ -40,7 +40,7 @@ def to_khot(index: torch.IntTensor, num_classes: int) -> torch.IntTensor:
     if index.ndim == 1:
         index = index.unsqueeze(dim=1)
 
-    khot = torch.zeros(index.size(0), num_classes)
+    khot = torch.zeros(index.size(0), num_classes, device=index.device)
     khot.scatter_(1, index, 1)
     return khot
 
@@ -114,6 +114,11 @@ def get_top1_acc(top1_pred: torch.FloatTensor, gt: torch.FloatTensor, num_cls: i
     top1_pred = to_khot(top1_pred, num_cls)
     correct = top1_pred * gt
     return ((correct) != 0).sum() / top1_pred.size(0)
+
+
+@torch.no_grad()
+def get_top5_acc(top5_pred: torch.FloatTensor, gt: torch.FloatTensor, num_cls: int) -> torch.FloatTensor:
+    return get_top1_acc(top5_pred, gt, num_cls)
 
 
 def plot_matrix(cl_matrix: np.ndarray, current_task_id: int) -> Figure:
