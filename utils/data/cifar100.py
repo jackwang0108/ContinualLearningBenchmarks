@@ -26,8 +26,8 @@ CIFAR_PATH: Path = (Path(__file__).resolve() /
 @lru_cache(maxsize=1)
 def check_cifar100(assertion: bool = True) -> bool:
     if assertion:
-        assert CIFAR_PATH.exists(), f"Cifar100 is not downloaded! Please downloaded Cifar100 and extract to {
-            CIFAR_PATH.relative_to(Path(__file__).parent.parent.parent.resolve())}"
+        assert CIFAR_PATH.exists(
+        ), f"Cifar100 is not downloaded! Please downloaded Cifar100 and extract to {CIFAR_PATH.relative_to(Path(__file__).parent.parent.parent.resolve())}"
     return CIFAR_PATH.exists()
 
 

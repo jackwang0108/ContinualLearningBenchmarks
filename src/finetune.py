@@ -18,7 +18,7 @@ from model.finetune import Finetune
 from utils.helper import get_logger
 from utils.datasets import CLDatasetGetter
 from utils.helper import (plot_matrix, draw_image)
-from utils.helper import (get_probas, get_pred, to_onehot)
+from utils.helper import (get_probas, get_pred, to_khot)
 from utils.helper import (get_top1_acc,
                           get_backward_transfer,
                           get_last_setp_accuracy,
@@ -50,7 +50,7 @@ def train_epoch(model: Finetune, train_loader: DataLoader, loss_func: nn.Module,
     label: torch.LongTensor
     for image, label in train_loader:
         image = image.to(device)
-        label = to_onehot(label, total_num_classes).to(device)
+        label = to_khot(label, total_num_classes).to(device)
 
         logits = model(image)
         loss = loss_func(logits, label)
@@ -149,8 +149,8 @@ def get_continual_learning_ability_tester(task_num: int, num_cls_per_task: int) 
             cl_matrix[i, task_id] = test_epoch(
                 model, previous_loader, get_top1_acc, num_cls_per_task)
 
-            logger.info(f"\ttest on task {i}, test_acc={
-                cl_matrix[i, task_id]:.2f}, {learned_tasks[i]}")
+            logger.info(
+                f"\ttest on task {i}, test_acc={cl_matrix[i, task_id]: .2f}, {learned_tasks[i]}")
 
         # calculate continual learning ability metrics and log to summarywriter
         if task_id >= 1:
