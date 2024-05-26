@@ -21,8 +21,8 @@ class CosineClassifier(nn.Module):
         self.in_features = in_features
         self.out_features = out_features
 
-        assert out_features == weights.size(0), f"mismatched weights {out_features=} but {
-            weights.size(0)=}"
+        assert out_features == weights.size(
+            0), f"mismatched weights {out_features=} but { weights.size(0)=}"
 
         self.linear = nn.Linear(in_features=in_features,
                                 out_features=out_features, bias=False)
