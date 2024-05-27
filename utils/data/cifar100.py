@@ -12,6 +12,7 @@ import numpy as np
 # Torch Library
 import torch
 import torch.nn as nn
+import torchvision.transforms as transforms
 from torch.utils.data import Dataset
 from torchvision.datasets.utils import check_integrity, download_and_extract_archive
 
@@ -172,6 +173,28 @@ def get_cifar100_task_data(split: Split, task: Task, cls_ids: list[int]) -> tupl
 
 
 class Cifar100Dataset(Dataset):
+
+    @staticmethod
+    def get_transforms() -> tuple[transforms.Compose, transforms.Compose]:
+        train_transform = transforms.Compose([
+            transforms.ToPILImage(),
+            transforms.RandomCrop(32, padding=4),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            transforms.Normalize(
+                mean=(0.5071, 0.4867, 0.4408),
+                std=(0.2675, 0.2565, 0.2761)
+            )
+        ])
+        test_transform = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize(
+                mean=(0.5071, 0.4867, 0.4408),
+                std=(0.2675, 0.2565, 0.2761)
+            )
+        ])
+        return train_transform, test_transform
+
     def __init__(self, images: Images, labels: Labels, transforms: Optional[nn.Module] = None) -> None:
         super().__init__()
         self.images = images
@@ -192,37 +215,6 @@ class Cifar100Dataset(Dataset):
 
     def augment(self, image: torch.FloatTensor) -> torch.FloatTensor:
         return image if self.transforms is None else self.transforms(image)
-
-        # @lru_cache(maxsize=3)
-        # def get_task_data_getter(split: Split) -> Callable[[Task], tuple[Images, Labels]]:
-        #     """
-        #     deprecated
-        #     """
-        #     images, labels = get_cifar100_data(split)
-
-        #     labels = np.array(labels, dtype=np.int64)
-
-        #     cls_id_mapper = {cls_name: cls_id for cls_id,
-        #                      cls_name in enumerate(get_cifar100_cls_names())}
-
-        #     def task_data_getter(task: Task, id_mapper: dict[int, int]) -> tuple[Images, Labels]:
-        #         task_images, task_labels = [], []
-
-        #         for cls_name in task:
-        #             ori_id = cls_id_mapper[cls_name]
-        #             cls_mask = labels == ori_id
-        #             task_images.append(images[cls_mask])
-
-        #             task_label = labels[cls_mask].copy()
-
-        #             # remap the id
-        #             task_label[:] = id_mapper[ori_id]
-
-        #             task_labels.append(task_label)
-
-        #         return np.concatenate(task_images), np.concatenate(task_labels)
-
-        #     return task_data_getter
 
 
 if __name__ == "__main__":

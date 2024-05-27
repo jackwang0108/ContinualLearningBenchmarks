@@ -9,11 +9,11 @@ import numpy as np
 
 # Torch Library
 import torch.nn as nn
+import torchvision.transforms as transforms
 from torch.utils.data import Dataset, DataLoader
 
 # My Library
 from .data import cifar100 as cifar100
-from .transforms import UnifiedTransforms, get_transforms
 from .annotation import Images, Labels, Task, Split, SupportedDataset, TorchDatasetImplementation, TaskDataGetter, ClassDataGetter
 
 
@@ -127,7 +127,8 @@ class CLDatasetGetter():
         task_num: int = 10,
         fixed_task: bool = False,
         given_tasks: Optional[list[Task]] = None,
-        transform: Optional[nn.Module] = None
+        transform: Optional[tuple[transforms.Compose,
+                                  transforms.Compose]] = (None, None)
     ) -> None:
         # sourcery skip: assign-if-exp
 
@@ -156,17 +157,7 @@ class CLDatasetGetter():
         self.train_task_data_getter = get_task_data_getter(dataset, "train")
 
         # use default transforms
-        if transform is None:
-            if dataset == "cifar100":
-                crop_size = 32
-            else:
-                crop_size = 224
-
-            self.train_transform, self.test_transform = get_transforms(
-                dataset=dataset,
-                crop_size=crop_size,
-                same_crop=False,
-            )
+        self.train_transform, self.test_transform = transform
 
         self.learned_tasks = []
 
@@ -175,7 +166,7 @@ class CLDatasetGetter():
     def __iter__(self):
         return self
 
-    def __next__(self) -> tuple[int, list[str], Dataset, Dataset]:
+    def __next__(self) -> tuple[int, Task, Dataset, Dataset]:
         if self.task_id >= len(self.tasks):
             raise StopIteration
 
@@ -194,7 +185,10 @@ class CLDatasetGetter():
             current_task, current_task_cls_ids)
 
         # get torch.utils.data.Dataset
-        dataset = get_dataset(self.dataset)
+        dataset: cifar100.Cifar100Dataset = get_dataset(self.dataset)
+
+        if self.train_transform is None and self.test_transform is None:
+            self.train_transform, self.test_transform = dataset.get_transforms()
 
         train_dataset = dataset(
             task_images_train, task_labels_train, self.train_transform)

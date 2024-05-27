@@ -1,3 +1,6 @@
+"""
+deprecated
+"""
 # Standard Library
 import random
 from typing import Optional
