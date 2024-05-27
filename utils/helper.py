@@ -1,6 +1,7 @@
 # Standard Library
 import sys
 import math
+import argparse
 import itertools
 from pathlib import Path
 from typing import Literal, Callable
@@ -33,6 +34,17 @@ def get_logger(log_file: Path, with_time: bool = True):
                format=f"{'{time:YYYY-D-MMMM@HH:mm:ss}' if with_time else ''}│ <level>{{message}}</level>")
 
     return logger
+
+
+def get_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-d", "--dataset", type=str,
+                        default="cifar100", choices=["cifar100", "tinyimagenet"], help="dataset to use")
+    parser.add_argument("-n", "--num_tasks", type=int,
+                        default=10, help="number of tasks")
+    parser.add_argument("-f", "--fixed_tasks", default=False,
+                        action="store_true", help="if using predifined tasks")
+    return parser
 
 
 def to_khot(index: torch.IntTensor, num_classes: int) -> torch.IntTensor:

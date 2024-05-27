@@ -1,4 +1,5 @@
 # Standard Library
+import argparse
 import datetime
 from pathlib import Path
 from typing import Optional
@@ -17,7 +18,9 @@ from torch.utils.tensorboard import SummaryWriter
 
 # My Library
 from model.iCaRL import iCaRL
-from utils.helper import get_logger
+from utils.annotation import Task
+from utils.helper import (get_logger,
+                          get_parser)
 from utils.datasets import (get_dataset,
                             get_cls_data_getter,
                             CLDatasetGetter)
@@ -395,16 +398,16 @@ def get_continual_learning_ability_tester(task_num: int, num_cls_per_task: int) 
     return continual_learning_ability_tester
 
 
-def continual_learning():
+def continual_learning(args: argparse.Namespace):
 
     dataset_getter = CLDatasetGetter(
-        dataset="cifar100", task_num=10, fixed_task=False)
+        dataset=args.dataset, task_num=args.num_tasks, fixed_task=args.fixed_tasks)
 
     model: iCaRL
     model = iCaRL().to(device)
 
     # iCaRL needs a exemplar set
-    total_exemplar_size = 2000
+    total_exemplar_size = args.buffer_size
     exemplar_set: dict[str, tuple[Images, Labels]] = {}
 
     # logging
@@ -421,7 +424,7 @@ def continual_learning():
 
     train_dataset: Cifar100Dataset
     test_dataset: Cifar100Dataset
-    learned_tasks: list[DataLoader] = []
+    learned_tasks: list[Task] = []
     learned_task_loaders: list[DataLoader] = []
     for task_id, current_task, train_dataset, test_dataset in dataset_getter:
         # prepare the data for the task
@@ -441,7 +444,7 @@ def continual_learning():
         train_loader = DataLoader(
             train_dataset, batch_size=32, shuffle=True, num_workers=2)
         test_loader = DataLoader(
-            test_dataset, batch_size=32, shuffle=True, num_workers=2)
+            test_dataset, batch_size=32, shuffle=False, num_workers=2)
 
         # learn the new task
         with model.set_new_task(current_task):
@@ -516,5 +519,20 @@ def continual_learning():
     logger.success("Finished Training")
 
 
+def get_args() -> argparse.Namespace:
+    # universal parser
+    parser = get_parser()
+
+    # iCaRL args
+    parser.description = "Train iCaRL"
+    parser.add_argument("-b", "--buffer_size", type=int,
+                        default=2000, help="size of buffer, i.e. examplar size")
+    args = parser.parse_args()
+    for key, value in vars(args).items():
+        logger.info(f"{key}: {value}")
+
+    return args
+
+
 if __name__ == "__main__":
-    continual_learning()
+    continual_learning(get_args())
