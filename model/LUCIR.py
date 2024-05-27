@@ -108,6 +108,21 @@ class LUCIR(nn.Module, ContinualLearningModel):
 
 
 if __name__ == "__main__":
-    lucir = LUCIR()
+    from utils.datasets import CLDatasetGetter
+    from torch.utils.data import DataLoader
 
-    lucir = lucir.to("mps")
+    model = LUCIR()
+    model = model.to("cuda:0")
+
+    train_image = torch.randn(64, 3, 32, 32).to("cuda:0")
+    test_image = torch.randn(16, 3, 32, 32).to("cuda:0")
+
+    with model.set_new_task(t := ["1", "2", "3"]):
+        logits = model(train_image)
+
+        # calculate mean of class
+        for i, t_name in enumerate(t):
+            model.exemplar_means[t_name] = (
+                torch.ones(1, 512) * i).to("cuda:0")
+
+        pred = model.get_preds(test_image)

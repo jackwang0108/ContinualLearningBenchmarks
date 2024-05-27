@@ -1,5 +1,7 @@
 # ignore datasets
 data/cifar-100-python/
+data/processed
+data/tiny-imagenet-processed.zip
 
 # ignore test.py
 test.py

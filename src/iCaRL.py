@@ -122,7 +122,7 @@ def paper_train_epoch(model: iCaRL, train_loader: DataLoader, loss_func: nn.Modu
     total_loss = 0
 
     sigmoid = nn.Sigmoid()
-    loss_func = nn.BCELoss(reduction="mean")
+    loss_func = nn.BCEWithLogitsLoss(reduction="mean")
 
     total_num_classes = len(model.learned_classes) + len(model.current_task)
 
@@ -155,7 +155,7 @@ def paper_train_epoch(model: iCaRL, train_loader: DataLoader, loss_func: nn.Modu
             # ref: Page 3, Algorithm 3, \sum_{y=1}^{s-1}..., here y=1~s-1 means distill on learned class logits
             label[:, :len(model.learned_classes)] = teacher_logits
 
-        loss = loss_func(sigmoid(logits), label)
+        loss = loss_func(logits, label)
 
         optimizer.zero_grad()
         loss.backward()
@@ -295,7 +295,8 @@ def get_task_learner() -> TaskLearner:
         log_times = 5
         num_epoch = 70
         for epoch in range(num_epoch):
-            train_loss = train_epoch(model, train_loader, loss_func, optimizer)
+            train_loss = paper_train_epoch(
+                model, train_loader, loss_func, optimizer)
 
             test_top1_acc = test_epoch(model, test_loader, get_top1_acc,
                                        num_cls_per_task) * 100
