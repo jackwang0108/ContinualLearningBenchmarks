@@ -26,11 +26,36 @@
             "console": "integratedTerminal"
         },
         {
+            "name": "debug main",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "src.main",
+            "args": [
+                "--model",
+                "${input:clalgo}",
+                "--backbone",
+                "resnet18"
+            ],
+            "console": "integratedTerminal"
+        },
+        {
             "name": "Python 调试程序: 当前文件",
             "type": "debugpy",
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
+        }
+    ],
+    "inputs": [
+        {
+            "id": "clalgo",
+            "type": "pickString",
+            "description": "which cl algorithm you want to debug?",
+            "options": [
+                "finetune",
+                "iCaRL"
+            ],
+            "default": "finetune"
         }
     ]
 }
