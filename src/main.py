@@ -18,6 +18,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 # My Library
 import src
+import model
 import utils.datasets
 from utils.datasets import CLDatasetGetter
 from utils.helper import (get_logger, 
@@ -33,13 +34,14 @@ from utils.annotation import (
     PerformanceFunc,
     CLAbilityTester
 )
+from model.base import ContinualLearningModel
 
 
 logger = None
 device: torch.device = None
 writer: SummaryWriter = None
 
-class CLModule(Protocol):
+class CLAlgoModule(Protocol):
     """
     CLModule defines the protocols (a set of functions) that a continual learning algorithm implementation (e.g. ./src/iCaRL.py) must has.
     """
@@ -47,7 +49,7 @@ class CLModule(Protocol):
     def get_args(self, argument_list: list[str]) -> tuple[argparse.Namespace, list[str]]:
         pass
     
-    def get_model(self) -> nn.Module:
+    def get_model(self, backbone: nn.Module) -> nn.Module:
         pass
 
 def train_epoch(model: nn.Module, train_loader: DataLoader):
@@ -76,12 +78,15 @@ def continual_learning(main_args: argparse.Namespace):
 
 
 
-def get_args() -> tuple[CLModule, argparse.Namespace, argparse.Namespace, list[str]]:
+def get_args() -> tuple[CLAlgoModule, argparse.Namespace, argparse.Namespace, list[str]]:
     parser = argparse.ArgumentParser()
     
     # basic arguments
     parser.add_argument("--model", type=str,
                         default="finetune", choices=src.avaliable_model, help="continual learning model to train")
+    parser.add_argument("--backbone", type=str,
+                        default="resnet18", choices=model.avaliable_backbone, help="vision backbones")
+    parser.add_argument("--pretrained", default=False, action="store_true", help="if use pretrained backbone")
     parser.add_argument("--dataset", type=str,
                         default="cifar100", choices=utils.datasets.avaliable_datasets, help="datasets to use")
     parser.add_argument("--num_tasks", type=int, default=10, help="number of tasks")
@@ -108,9 +113,9 @@ def get_args() -> tuple[CLModule, argparse.Namespace, argparse.Namespace, list[s
     logger = get_logger(Path(log_dir) / "running.log")
     
     # load continual learning module
-    model_module = cast(CLModule, importlib.import_module(f"src.{main_args.model}"))
+    cl_algo_module = cast(CLAlgoModule, importlib.import_module(f"src.{main_args.model}"))
     
-    model_args, unknow_args = model_module.get_args(remaining_args)
+    model_args, unknow_args = cl_algo_module.get_args(remaining_args)
     
     for args_name, args in {
         "main args": main_args, 
@@ -122,12 +127,12 @@ def get_args() -> tuple[CLModule, argparse.Namespace, argparse.Namespace, list[s
         for key, value in (vars(args) if args_name != "unknown args" else args).items():
             logger.info(f"\t{key}: {value}")
     
-    return model_module, main_args, model_args, unknow_args
+    return cl_algo_module, main_args, model_args, unknow_args
 
 
 def main():
     # get command line arguments
-    model_module, main_args, model_args, unknow_args = get_args()
+    cl_algo_module, main_args, model_args, unknow_args = get_args()
     
     # fix all random status
     set_random_seed(seed=main_args.seed)
@@ -136,8 +141,10 @@ def main():
     global device
     device = torch.device(f"cuda:{main_args.gpu_id}" if main_args.gpu_id != "cpu" else "cpu")
     
-    # TODO: 模型支持backbone
-    # TODO: MNIST支持下载
+    # get the continual learning model
+    backbone = model.get_backbone(main_args.backbone)
+    continual_learning_model: ContinualLearningModel = cl_algo_module.get_model(backbone=backbone)
+    print(continual_learning_model.feature_extractor)
 
 if __name__ == "__main__":
     main()

@@ -18,22 +18,13 @@ from .base import ContinualLearningModel
 
 class iCaRL(nn.Module, ContinualLearningModel):
 
-    def __init__(self, feature_dim: int = 512) -> None:
+    def __init__(self, backbone: nn.Module) -> None:
         super().__init__()
-        self.feature_extractor: ResNet = models.resnet34(
-            weights=models.ResNet34_Weights.DEFAULT)
+        
+        self.feature_extractor = backbone
 
-        # Note: when input batched image is [1, C, H, W], resnet will be wrong for Resnet._forward_impl.layer4(x)
-        # Note: this is because the maxpool layer. So, remove the maxpool
-        # Note: check module/resnet.py for my implementation
-        self.feature_extractor.maxpool = nn.Identity()
-
-        # map the features from feature space into prototype space
-        self.feature_extractor.fc = nn.Sequential(
-            nn.Linear(self.feature_extractor.fc.in_features, feature_dim),
-        )
-
-        self.feature_dim = feature_dim
+        # set in __init__.py:get_backbone()
+        self.feature_dim = self.feature_extractor.feature_dim
 
         # after learning the current task, the mean of exemplar sets need to be recalculated, so we need to save the current feature extractor
         self.previous_feature_extractor: ResNet = None

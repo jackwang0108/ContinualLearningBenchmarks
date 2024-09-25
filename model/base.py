@@ -24,6 +24,10 @@ class ContinualLearningModel:
     Raises:
         NotImplementedError: if the required methods are not implemented by the sub-class
     """
+    
+    feature_dim: int
+    feature_extractor: nn.Module
+    
 
     @contextmanager
     def set_new_task(self, task: Task):

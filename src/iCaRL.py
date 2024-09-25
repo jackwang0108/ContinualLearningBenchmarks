@@ -19,8 +19,7 @@ from torch.utils.tensorboard import SummaryWriter
 # My Library
 from model.iCaRL import iCaRL
 from utils.annotation import Task
-from utils.helper import (get_logger,
-                          get_parser)
+from utils.helper import get_logger
 from utils.datasets import (get_dataset,
                             get_cls_data_getter,
                             CLDatasetGetter)
@@ -41,7 +40,8 @@ from utils.annotation import (
     CLAbilityTester,
 )
 
-rname = input("the name of this running: ")
+# rname = input("the name of this running: ")
+rname = 1
 wname = f"{rname}-{datetime.datetime.now().strftime('%m-%d %H.%M')}"
 writer = SummaryWriter(log_dir := f"log/{wname}")
 logger = get_logger(Path(log_dir) / "running.log")
@@ -52,8 +52,12 @@ hparams_dict = {}
 
 crop_size = 32
 
+def get_model(backbone: nn.Module) -> iCaRL:
+    return iCaRL(backbone)
+
 
 def train_epoch(model: iCaRL, train_loader: DataLoader, loss_func: nn.Module, optimizer: optim.Optimizer) -> float:
+    # logger.info(f"{train_epoch.__name__}")
     total_loss = 0
 
     sigmoid = nn.Sigmoid()
@@ -286,8 +290,8 @@ def get_task_learner() -> TaskLearner:
 
         # Note: if use SGD, the performance is much more weaker than use Adam
         # Note: this may because of the original code uses gradient clip
-        optimizer = optim.Adam(model.parameters(), lr=1e-3, weight_decay=1e-5)
-        # optimizer = optim.SGD(model.parameters(), lr=1e-3, weight_decay=5e-5)
+        # optimizer = optim.Adam(model.parameters(), lr=1e-3, weight_decay=1e-5)
+        optimizer = optim.SGD(model.parameters(), lr=1e-3, weight_decay=5e-5)
 
         scheduler = torch.optim.lr_scheduler.MultiStepLR(
             optimizer, milestones=[49, 63], gamma=0.2)
@@ -295,7 +299,7 @@ def get_task_learner() -> TaskLearner:
         log_times = 5
         num_epoch = 70
         for epoch in range(num_epoch):
-            train_loss = paper_train_epoch(
+            train_loss = train_epoch(
                 model, train_loader, loss_func, optimizer)
 
             test_top1_acc = test_epoch(model, test_loader, get_top1_acc,
@@ -520,19 +524,14 @@ def continual_learning(args: argparse.Namespace):
     logger.success("Finished Training")
 
 
-def get_args() -> argparse.Namespace:
-    # universal parser
-    parser = get_parser()
+def get_args(argument_list: list[str]) -> tuple[argparse.Namespace, list[str]]:
+    parser = argparse.ArgumentParser(description="Train iCaRL")
 
-    # iCaRL args
-    parser.description = "Train iCaRL"
-    parser.add_argument("-b", "--buffer_size", type=int,
+    parser.add_argument("--buffer_size", type=int,
                         default=2000, help="size of buffer, i.e. examplar size")
-    args = parser.parse_args()
-    for key, value in vars(args).items():
-        logger.info(f"{key}: {value}")
-
-    return args
+    model_args, unknow_args = parser.parse_known_args(argument_list)
+    
+    return model_args, unknow_args
 
 
 if __name__ == "__main__":
