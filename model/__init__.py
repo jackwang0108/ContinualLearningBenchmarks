@@ -25,13 +25,13 @@ __all__ = [
     "LingoCL"
 ]
 
-avaliable_backbone_type = Literal[
+AvaliableBackbone = Literal[
     "resnet18", "resnet34", "resnet50", "resnet101", "resnet152"
 ]
-avaliable_backbone = get_args(avaliable_backbone_type)
+avaliable_backbone = get_args(AvaliableBackbone)
 
 
-def get_backbone(backbone: avaliable_backbone_type, pretrained: bool=False) -> nn.Module:
+def get_backbone(backbone: AvaliableBackbone, pretrained: bool=False) -> nn.Module:
     assert backbone in avaliable_backbone, f"unknown backbone: {backbone}, avaliable backbones are {avaliable_backbone}"
     if backbone.startswith("resnet"):
         
