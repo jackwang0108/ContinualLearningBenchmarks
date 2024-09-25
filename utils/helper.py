@@ -1,7 +1,8 @@
 # Standard Library
+import os
 import sys
 import math
-import argparse
+import random
 import itertools
 from pathlib import Path
 from typing import Literal, Callable
@@ -13,7 +14,6 @@ from loguru import logger
 import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
-from loguru._defaults import LOGURU_FORMAT
 
 # Torch Library
 import torch
@@ -35,16 +35,14 @@ def get_logger(log_file: Path, with_time: bool = True):
 
     return logger
 
-
-def get_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-d", "--dataset", type=str,
-                        default="cifar100", choices=["cifar100", "tinyimagenet"], help="dataset to use")
-    parser.add_argument("-n", "--num_tasks", type=int,
-                        default=10, help="number of tasks")
-    parser.add_argument("-f", "--fixed_tasks", default=False,
-                        action="store_true", help="if using predifined tasks")
-    return parser
+def set_random_seed(seed: int) -> None:
+    os.environ['PYTHONHASHSEED'] = str(seed)
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
 
 
 def to_khot(index: torch.IntTensor, num_classes: int) -> torch.IntTensor:
