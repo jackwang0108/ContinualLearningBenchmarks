@@ -3,6 +3,9 @@ data/cifar-100-python/
 data/processed
 data/tiny-imagenet-processed.zip
 
+# ignore images
+*.png
+
 # ignore test.py
 test.py
 
