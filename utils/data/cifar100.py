@@ -17,6 +17,7 @@ from torch.utils.data import Dataset
 from torchvision.datasets.utils import check_integrity, download_and_extract_archive
 
 # My Library
+from .denorm import DeNormalize
 from ..annotation import Task, Images, Labels, ClassDataGetter
 
 
@@ -145,27 +146,26 @@ def get_task_data(
     return np.concatenate(images), np.concatenate(labels)
 
 
-def get_transforms() -> tuple[transforms.Compose, transforms.Compose]:
+def get_transforms() -> tuple[transforms.Compose, transforms.Compose, DeNormalize]:
+    std = (0.2675, 0.2565, 0.2761)
+    mean = (0.5071, 0.4867, 0.4408)
     train_transform = transforms.Compose(
         [
             transforms.ToPILImage(),
             transforms.RandomCrop(32, padding=4),
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
-            transforms.Normalize(
-                mean=(0.5071, 0.4867, 0.4408), std=(0.2675, 0.2565, 0.2761)
-            ),
+            transforms.Normalize(mean=mean, std=std),
         ]
     )
     test_transform = transforms.Compose(
         [
             transforms.ToTensor(),
-            transforms.Normalize(
-                mean=(0.5071, 0.4867, 0.4408), std=(0.2675, 0.2565, 0.2761)
-            ),
+            transforms.Normalize(mean=mean, std=std),
         ]
     )
-    return train_transform, test_transform
+    denorm_transform = DeNormalize(mean=mean, std=std)
+    return train_transform, test_transform, denorm_transform
 
 
 class Cifar100Dataset(Dataset):

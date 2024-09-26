@@ -29,6 +29,7 @@ from .annotation import (
 
 Split = Literal["train", "val", "test"]
 AvaliableDatasets = Literal["cifar100"]
+avaliable_datasets = get_args(AvaliableDatasets)
 
 
 class CLDatasetModule(Protocol):
@@ -99,16 +100,12 @@ class CLDatasetGetter:
         task_num: int = 10,
         fixed_task: bool = False,
         given_tasks: Optional[list[Task]] = None,
-        transform: Optional[tuple[transforms.Compose, transforms.Compose]] = (
-            None,
-            None,
-        ),
     ) -> None:
         # sourcery skip: assign-if-exp
 
-        assert dataset in (
-            ad := get_args(AvaliableDatasets)
-        ), f"unsupported dataset: {dataset}, current avaliable datasets: {ad}"
+        assert (
+            dataset in avaliable_datasets
+        ), f"unsupported dataset: {dataset}, current avaliable datasets: {avaliable_datasets}"
 
         self.dataset = dataset
         self.task_num = task_num
@@ -125,7 +122,7 @@ class CLDatasetGetter:
             self.tasks = (
                 given_tasks if given_tasks else get_tasks(dataset, None, None, True)
             )
-            cls_names = list(chain.from_iterable(given_tasks))
+            cls_names = list(chain.from_iterable(self.tasks))
         else:
             # else using a random generated task list
             cls_names = self.dataset_module.get_cls_names()
@@ -145,11 +142,9 @@ class CLDatasetGetter:
         )
 
         # get training and testing transforms
-        self.train_transform, self.test_transform = self.dataset_module.get_transforms()
-        if transform is not None and transform[0] is not None:
-            self.train_transform = transform[0]
-        if transform is not None and transform[1] is not None:
-            self.test_transform = transform[1]
+        self.train_transform, self.test_transform, self.denorm_transform = (
+            self.dataset_module.get_transforms()
+        )
 
         self.learned_tasks: list[Task] = []
 
@@ -202,7 +197,7 @@ if __name__ == "__main__":
     import torch
     from .helper import draw_image
 
-    dataset_getter = CLDatasetGetter("cifar100", 10, False, transform=None)
+    dataset_getter = CLDatasetGetter("cifar100", 10, False)
 
     train_dataset: cifar100.Cifar100Dataset
     test_dataset: cifar100.Cifar100Dataset
@@ -223,11 +218,15 @@ if __name__ == "__main__":
             print(label)
             break
 
-        draw_image(image, f"./test/train-batch-{task_id=}.png")
+        draw_image(
+            dataset_getter.denorm_transform(image), f"./test/train-batch-{task_id=}.png"
+        )
 
         for image, label in test_loader:
             print(image.shape)
             print(label)
             break
 
-        draw_image(image, f"./test/test-batch-{task_id=}.png")
+        draw_image(
+            dataset_getter.denorm_transform(image), f"./test/test-batch-{task_id=}.png"
+        )
