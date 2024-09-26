@@ -15,13 +15,8 @@ Task = list[str]
 Images = np.ndarray
 Labels = np.ndarray
 
-Split = Literal["train", "val", "test"]
 
-SupportedDataset = Literal["cifar100"]
 
-# current supported dataset:
-#   - data.cifar100.Cifar100Dataset
-TorchDatasetImplementation = TypeVar("TorchDatasetImplementation")
 
 ClassDataGetter = Callable[[str, int], tuple[Images, Labels]]
 
