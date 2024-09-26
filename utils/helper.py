@@ -28,15 +28,22 @@ def get_logger(log_file: Path, with_time: bool = True):
     global logger
 
     logger.remove()
-    logger.add(log_file, level="DEBUG",
-               format=f"{'{time:YYYY-D-MMMM@HH:mm:ss}' if with_time else ''}│ {{message}}")
-    logger.add(sys.stderr, level="DEBUG",
-               format=f"{'{time:YYYY-D-MMMM@HH:mm:ss}' if with_time else ''}│ <level>{{message}}</level>")
+    logger.add(
+        log_file,
+        level="DEBUG",
+        format=f"{'{time:YYYY-D-MMMM@HH:mm:ss}' if with_time else ''}│ {{message}}",
+    )
+    logger.add(
+        sys.stderr,
+        level="DEBUG",
+        format=f"{'{time:YYYY-D-MMMM@HH:mm:ss}' if with_time else ''}│ <level>{{message}}</level>",
+    )
 
     return logger
 
+
 def set_random_seed(seed: int) -> None:
-    os.environ['PYTHONHASHSEED'] = str(seed)
+    os.environ["PYTHONHASHSEED"] = str(seed)
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -63,17 +70,22 @@ def get_pred(probas: torch.FloatTensor) -> torch.FloatTensor:
     return probas.argmax(dim=-1)
 
 
-class CLMetrics():
+class CLMetrics:
     def __init__(self, metrics: dict[str, MetricFunc]) -> None:
         self.metrics = metrics
 
-    def __call__(self, cl_matrix: np.ndarray, reduction: Literal["mean", "none"] = "mean") -> dict[str, float | np.ndarray]:
+    def __call__(
+        self, cl_matrix: np.ndarray, reduction: Literal["mean", "none"] = "mean"
+    ) -> dict[str, float | np.ndarray]:
         return {
-            metric_name: metric_func(cl_matrix, reduction) for metric_name, metric_func in self.metrics.items()
+            metric_name: metric_func(cl_matrix, reduction)
+            for metric_name, metric_func in self.metrics.items()
         }
 
 
-def _reduction(array: np.ndarray, reduction: Literal["mean", "none"] = "mean") -> float | np.ndarray:
+def _reduction(
+    array: np.ndarray, reduction: Literal["mean", "none"] = "mean"
+) -> float | np.ndarray:
     if reduction == "mean":
         return array.mean()
     elif reduction == "none":
@@ -82,25 +94,35 @@ def _reduction(array: np.ndarray, reduction: Literal["mean", "none"] = "mean") -
         raise NotImplementedError(f"{reduction} reduction is not supported")
 
 
-def get_backward_transfer(cl_matrix: np.ndarray, reduction: Literal["mean", "none"] = "mean") -> float | np.ndarray:
+def get_backward_transfer(
+    cl_matrix: np.ndarray, reduction: Literal["mean", "none"] = "mean"
+) -> float | np.ndarray:
     cl_matrix = cl_matrix.copy()
     R_ii = np.diag(cl_matrix)[:-1]
     R_iN = cl_matrix[:-1, -1]
     return _reduction(R_iN - R_ii, reduction)
 
 
-def get_forward_transfer(unlearned_perf: np.ndarray, cl_matrix: np.ndarray, reduction: Literal["mean", "none"] = "mean") -> float | np.ndarray:
+def get_forward_transfer(
+    unlearned_perf: np.ndarray,
+    cl_matrix: np.ndarray,
+    reduction: Literal["mean", "none"] = "mean",
+) -> float | np.ndarray:
     # TODO: finish this
     raise NotImplementedError
 
 
-def get_last_setp_accuracy(cl_matrix: np.ndarray, reduction: Literal["mean", "none"] = "mean") -> float | np.ndarray:
+def get_last_setp_accuracy(
+    cl_matrix: np.ndarray, reduction: Literal["mean", "none"] = "mean"
+) -> float | np.ndarray:
     cl_matrix = cl_matrix.copy()
     R_iN = cl_matrix[:, -1]
     return _reduction(R_iN, reduction)
 
 
-def get_average_incremental_accuracy(cl_matrix: np.ndarray, reduction: Literal["mean", "none"] = "mean") -> float | np.ndarray:
+def get_average_incremental_accuracy(
+    cl_matrix: np.ndarray, reduction: Literal["mean", "none"] = "mean"
+) -> float | np.ndarray:
     cl_matrix = cl_matrix.copy()
     last_step_accuracies = [
         get_last_setp_accuracy(cl_matrix[:i, :i], "mean")
@@ -110,7 +132,9 @@ def get_average_incremental_accuracy(cl_matrix: np.ndarray, reduction: Literal["
     return _reduction(np.array(last_step_accuracies), reduction)
 
 
-def get_forgetting_rate(cl_matrix: np.ndarray, reduction: Literal["mean", "none"] = "mean") -> float | np.ndarray:
+def get_forgetting_rate(
+    cl_matrix: np.ndarray, reduction: Literal["mean", "none"] = "mean"
+) -> float | np.ndarray:
     cl_matrix = cl_matrix.copy()
     cl_matrix = cl_matrix[:-1, :]
     R_iN = cl_matrix[:, -1]
@@ -119,7 +143,9 @@ def get_forgetting_rate(cl_matrix: np.ndarray, reduction: Literal["mean", "none"
 
 
 @torch.no_grad()
-def get_top1_acc(top1_pred: torch.FloatTensor, gt: torch.FloatTensor, num_cls: int) -> torch.FloatTensor:
+def get_top1_acc(
+    top1_pred: torch.FloatTensor, gt: torch.FloatTensor, num_cls: int
+) -> torch.FloatTensor:
     gt = to_khot(gt, num_cls)
     top1_pred = to_khot(top1_pred, num_cls)
     correct = top1_pred * gt
@@ -127,7 +153,9 @@ def get_top1_acc(top1_pred: torch.FloatTensor, gt: torch.FloatTensor, num_cls: i
 
 
 @torch.no_grad()
-def get_top5_acc(top5_pred: torch.FloatTensor, gt: torch.FloatTensor, num_cls: int) -> torch.FloatTensor:
+def get_top5_acc(
+    top5_pred: torch.FloatTensor, gt: torch.FloatTensor, num_cls: int
+) -> torch.FloatTensor:
     return get_top1_acc(top5_pred, gt, num_cls)
 
 
@@ -145,28 +173,39 @@ def plot_matrix(cl_matrix: np.ndarray, current_task_id: int) -> Figure:
 
     # create annotation
     annotation = [
-        ["-" for _ in range(cl_matrix.shape[1])] for _ in range(cl_matrix.shape[0])]
+        ["-" for _ in range(cl_matrix.shape[1])] for _ in range(cl_matrix.shape[0])
+    ]
     for i, j in itertools.product(range(cl_matrix.shape[0]), range(cl_matrix.shape[1])):
         if i <= j <= current_task_id:
             annotation[i][j] = f"{cl_matrix[i, j]:.2f}"
 
     sns_plot = sns.heatmap(
-        cl_matrix, annot=annotation, mask=mask, cmap=cmap, vmin=0, vmax=1, fmt="",
-        square=True, linewidths=.5, cbar_kws={"shrink": .5},
+        cl_matrix,
+        annot=annotation,
+        mask=mask,
+        cmap=cmap,
+        vmin=0,
+        vmax=1,
+        fmt="",
+        square=True,
+        linewidths=0.5,
+        cbar_kws={"shrink": 0.5},
         annot_kws={"fontsize": 8},
         yticklabels=[f"Prev.Task {i}" for i in range(cl_matrix.shape[0])],
-        xticklabels=[f"Curr.Task {i}" for i in range(cl_matrix.shape[1])]
+        xticklabels=[f"Curr.Task {i}" for i in range(cl_matrix.shape[1])],
     )
 
     return sns_plot.get_figure()
 
 
 def draw_image(image: torch.FloatTensor, save_path: str | Path):
-    grid_image = make_grid(image.clone().cpu(), nrow=int(
-        math.sqrt(int(image.size(0)))))
+    if not (save_path := Path(save_path)).parent.exists():
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+    grid_image = make_grid(image.clone().cpu(), nrow=int(math.sqrt(int(image.size(0)))))
+    plt.tight_layout()
     plt.imshow(grid_image.permute(1, 2, 0))
     plt.axis("off")
-    plt.savefig(str(save_path))
+    plt.savefig(str(save_path.resolve()))
 
 
 if __name__ == "__main__":

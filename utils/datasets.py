@@ -163,10 +163,11 @@ class CLDatasetGetter:
         return self
 
     def __next__(self) -> tuple[int, Task, Dataset, Dataset]:
+
+        self.current_task_id += 1
         if self.current_task_id >= len(self.tasks):
             raise StopIteration
 
-        self.current_task_id += 1
         self.current_task = self.tasks[self.current_task_id]
 
         self.learned_tasks.append(self.current_task)
@@ -210,8 +211,10 @@ if __name__ == "__main__":
         test_loader = DataLoader(test_dataset, batch_size=32, shuffle=False)
 
         draw_image(
-            torch.from_numpy(train_dataset.images[:16]).permute(0, 3, 1, 2),
-            "./dataset.png",
+            torch.from_numpy(train_dataset.images[: 500 * 10 : 500]).permute(
+                0, 3, 1, 2
+            ),
+            f"./test/dataset-{task_id=}.png",
         )
 
         print(f"{task_id=}, {cls_names=}")
@@ -220,13 +223,11 @@ if __name__ == "__main__":
             print(label)
             break
 
-        draw_image(image, "./train-batch.png")
+        draw_image(image, f"./test/train-batch-{task_id=}.png")
 
         for image, label in test_loader:
             print(image.shape)
             print(label)
             break
 
-        draw_image(image, "./test-batch.png")
-
-        break
+        draw_image(image, f"./test/test-batch-{task_id=}.png")
