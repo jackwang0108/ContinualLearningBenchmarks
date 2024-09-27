@@ -11,6 +11,7 @@ from typing import Optional, Protocol, Literal
 import numpy as np
 
 # Torch Library
+import torch
 import torch.nn as nn
 import torchvision.transforms as transforms
 from torch.utils.data import Dataset, DataLoader
@@ -91,6 +92,23 @@ def get_tasks(
     random.shuffle(cls_names)
     cls_num = len(cls_names) // task_num
     return [cls_names[i : i + cls_num] for i in range(0, len(cls_names), cls_num)]
+
+
+def default_collate_fn(
+    batched_data: list[tuple[torch.FloatTensor, np.ndarray, np.int64]]
+) -> tuple[torch.FloatTensor, torch.FloatTensor, torch.LongTensor]:
+
+    augmented_images, original_images, labels = zip(*batched_data)
+
+    augmented_images = torch.stack(augmented_images, dim=0).float()
+
+    original_images = (
+        torch.from_numpy(np.stack(original_images, axis=0)).float().permute(0, 3, 1, 2)
+    )
+
+    labels = torch.from_numpy(np.array(labels)).long()
+
+    return augmented_images, original_images, labels
 
 
 class CLDatasetGetter:
@@ -203,38 +221,70 @@ class CLDatasetGetter:
 
 if __name__ == "__main__":
     import torch
+    from typing import get_args
     from .helper import draw_image
 
-    dataset_getter = CLDatasetGetter("cifar100", 10, False)
+    def test_CLDatasetGetter(dataset: AvaliableDatasets, task_num: int):
+        assert dataset in avaliable_datasets, f"Invalid {dataset=}"
 
-    train_dataset: cifar100.Cifar100Dataset
-    test_dataset: cifar100.Cifar100Dataset
-    for task_id, cls_names, train_dataset, test_dataset in dataset_getter:
-        train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
-        test_loader = DataLoader(test_dataset, batch_size=32, shuffle=False)
+        dataset_getter = CLDatasetGetter("cifar100", task_num, False)
 
-        draw_image(
-            torch.from_numpy(train_dataset.images[: 500 * 10 : 500]).permute(
-                0, 3, 1, 2
-            ),
-            f"./test/dataset-{task_id=}.png",
-        )
+        train_dataset: cifar100.Cifar100Dataset
+        test_dataset: cifar100.Cifar100Dataset
+        for task_id, cls_names, train_dataset, test_dataset in dataset_getter:
+            train_loader = DataLoader(
+                train_dataset,
+                batch_size=32,
+                shuffle=True,
+                collate_fn=default_collate_fn,
+            )
+            test_loader = DataLoader(
+                test_dataset,
+                batch_size=32,
+                shuffle=False,
+                collate_fn=default_collate_fn,
+            )
 
-        print(f"{task_id=}, {cls_names=}")
-        for image, label in train_loader:
-            print(image.shape)
-            print(label)
-            break
+            draw_image(
+                torch.from_numpy(train_dataset.images[: 500 * task_num : 500]).permute(
+                    0, 3, 1, 2
+                ),
+                f"./test/{test_CLDatasetGetter.__name__}-{dataset=}-{task_num=}-{task_id=}.png",
+            )
 
-        draw_image(
-            dataset_getter.denorm_transform(image), f"./test/train-batch-{task_id=}.png"
-        )
+            print(f"{task_id=}, {cls_names=}")
+            for augmented_image, original_image, label in train_loader:
+                print(augmented_image.shape)
+                print(original_image.shape)
+                print(label)
+                break
 
-        for image, label in test_loader:
-            print(image.shape)
-            print(label)
-            break
+            draw_image(
+                augmented_image,
+                f"./test/{test_CLDatasetGetter.__name__}-{dataset=}-{task_num=}-{task_id=}-train-augmented.png",
+            )
 
-        draw_image(
-            dataset_getter.denorm_transform(image), f"./test/test-batch-{task_id=}.png"
-        )
+            draw_image(
+                original_image.int(),
+                f"./test/{test_CLDatasetGetter.__name__}-{dataset=}-{task_num=}-{task_id=}-train-original.png",
+            )
+
+            for augmented_image, original_image, label in test_loader:
+                print(augmented_image.shape)
+                print(original_image.shape)
+                print(label)
+                break
+
+            draw_image(
+                augmented_image,
+                f"./test/{test_CLDatasetGetter.__name__}-{dataset=}-{task_num=}-{task_id=}-test-aumented.png",
+            )
+
+            draw_image(
+                original_image.int(),
+                f"./test/{test_CLDatasetGetter.__name__}-{dataset=}-{task_num=}-{task_id=}-test-original.png",
+            )
+
+    test_CLDatasetGetter("cifar100", task_num=2)
+    test_CLDatasetGetter("cifar100", task_num=5)
+    test_CLDatasetGetter("cifar100", task_num=10)

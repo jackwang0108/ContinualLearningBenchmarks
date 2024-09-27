@@ -186,43 +186,77 @@ class Cifar100Dataset(Dataset):
     def __len__(self) -> int:
         return len(self.labels)
 
-    def __getitem__(self, index: int) -> tuple[torch.FloatTensor, torch.FloatTensor]:
+    def __getitem__(
+        self, index: int
+    ) -> tuple[torch.FloatTensor, np.ndarray, torch.LongTensor]:
         # get image
-        image = self.images[index]
+        original_image: np.ndarray = self.images[index]
 
         # data augmentation
-        image = self.augment(image)
+        augmented_image: np.ndarray = self.augment(original_image.copy())
 
-        return image, self.labels[index]
+        return augmented_image, original_image, self.labels[index]
 
-    def augment(self, image: torch.FloatTensor) -> torch.FloatTensor:
-        return image if self.transforms is None else self.transforms(image)
+    def augment(self, original_image: torch.FloatTensor) -> torch.FloatTensor:
+        return (
+            original_image
+            if self.transforms is None
+            else self.transforms(original_image)
+        )
 
 
 if __name__ == "__main__":
+    import random
+    from pprint import pprint
+    from typing import get_args
     import matplotlib.pyplot as plt
     from ..helper import draw_image
 
-    cls_names = get_cls_names()
+    def test_get_cls_names():
+        return get_cls_names()
 
-    # get the data of a class
-    cls_data_getter = get_cls_data_getter("train")
-    camel_image, camel_label = cls_data_getter("camel", 10)
-    print(f"{camel_label=}")
-    print(f"{camel_image.shape=}")
-    camel_image_tensor = torch.from_numpy(camel_image[:16]).permute(0, 3, 1, 2)
-    draw_image(camel_image_tensor, "./get-class-data-example.png")
+    pprint(test_get_cls_names())
 
-    # get the data of a task
-    # fmt: off
-    task = ["apple", "aquarium_fish", "baby", "bear", "beaver", "bed", "bee", "beetle", "bicycle", "bottle"]
-    # fmt: on
-    task_image, task_label = get_task_data("train", task, range(len(task)))
+    def test_get_cls_data_getter(
+        cls_name: str, cls_id: int, split: str, pic_num: int = 10
+    ):
+        assert split in get_args(Split), f"invalid {split=}"
+        # get the data of a class
+        cls_data_getter = get_cls_data_getter(split)
+        cls_image, cls_label = cls_data_getter(cls_name, cls_id)
 
-    print(f"{task=}")
-    print(f"{task_label=}")
-    print(f"{task_image.shape=}")
-    task_image_tensor = torch.from_numpy(task_image[: 500 * 10 : 500]).permute(
-        0, 3, 1, 2
-    )
-    draw_image(task_image_tensor, "./get-task-data-example.png")
+        print(f"{cls_image.shape=}")
+        print(f"{cls_name=}, {cls_id=}, {cls_label[0]} {cls_label.shape=}")
+        camel_image_tensor = torch.from_numpy(cls_image[:pic_num]).permute(0, 3, 1, 2)
+        draw_image(
+            camel_image_tensor,
+            f"./test/get-class-data-example-{cls_name=}-{cls_id=}-{split=}-{pic_num=}.png",
+        )
+
+    test_get_cls_data_getter("apple", 0, "train", 16)
+    test_get_cls_data_getter("bottle", 1, "test", 16)
+
+    def test_get_task_data(task_len: int, split: Split):
+        assert split in get_args(Split), f"invalid {split=}"
+        # get the data of a task
+        # fmt: off
+        cls_names = get_cls_names()
+        random.shuffle(cls_names)
+        task = cls_names[:task_len]
+        # fmt: on
+        task_image, task_label = get_task_data(split, task, range(len(task)))
+
+        num = 100 if split == "test" else 500
+        print(f"{task=}")
+        print(f"{task_label=}")
+        print(f"{task_image.shape=}")
+        task_image_tensor = torch.from_numpy(
+            task_image[: num * task_len : num]
+        ).permute(0, 3, 1, 2)
+        draw_image(
+            task_image_tensor,
+            f"./test/get-task-data-test-image-{split=}-{task_len=}.png",
+        )
+
+    test_get_task_data(task_len=10, split="train")
+    test_get_task_data(task_len=16, split="test")
