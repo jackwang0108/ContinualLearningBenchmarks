@@ -1,5 +1,6 @@
 # Standard Library
-from typing import Literal, TypeVar, Callable, Optional
+from collections.abc import Callable
+from typing import Literal, TypeVar, Optional
 
 # Third-Party Library
 import numpy as np
@@ -12,24 +13,23 @@ from torch.utils.data import DataLoader
 
 Task = list[str]
 
-Images = np.ndarray
-Labels = np.ndarray
-
-
+Images = np.ndarray | torch.FloatTensor
+Labels = np.ndarray | torch.LongTensor
 
 
 ClassDataGetter = Callable[[str, int], tuple[Images, Labels]]
 
 TaskDataGetter = Callable[[Task, list[int]], tuple[Images, Labels]]
 
-PerformanceFunc = Callable[[torch.FloatTensor,
-                            torch.FloatTensor, int], torch.FloatTensor]
+PerformanceFunc = Callable[
+    [torch.FloatTensor, torch.FloatTensor, int], torch.FloatTensor
+]
 
-TaskLearner = Callable[[int, int, nn.Module,
-                        DataLoader, DataLoader], nn.Module]
+TaskLearner = Callable[..., nn.Module]
 
-CLAbilityTester = Callable[[int, list[list[str]], list[DataLoader],
-                            nn.Module], tuple[np.ndarray, Optional[dict[str, float]]]]
+CLAbilityTester = Callable[
+    [int, Task, list[Task], list[DataLoader], nn.Module],
+    tuple[np.ndarray, Optional[dict[str, float]]],
+]
 
-MetricFunc = Callable[[np.ndarray,
-                       Literal["mean", "none"]], float | np.ndarray]
+MetricFunc = Callable[[np.ndarray, Literal["mean", "none"]], float | np.ndarray]
