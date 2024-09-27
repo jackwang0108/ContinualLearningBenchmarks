@@ -20,20 +20,20 @@ from torch.utils.tensorboard import SummaryWriter
 from model.iCaRL import iCaRL
 from utils.annotation import Task
 from utils.helper import get_logger
-from utils.datasets import (get_dataset,
-                            get_cls_data_getter,
-                            CLDatasetGetter)
+from utils.datasets import CLDatasetGetter
 from utils.transforms import get_transforms
 from utils.data.cifar100 import Cifar100Dataset
-from utils.helper import (plot_matrix, draw_image)
-from utils.helper import (get_probas, get_pred, to_khot)
-from utils.helper import (get_top1_acc,
-                          get_backward_transfer,
-                          get_last_setp_accuracy,
-                          get_average_incremental_accuracy,
-                          get_forgetting_rate,
-                          CLMetrics)
-from utils.annotation import SupportedDataset, Images, Labels
+from utils.helper import plot_matrix, draw_image
+from utils.helper import get_probas, get_pred, to_khot
+from utils.helper import (
+    get_top1_acc,
+    get_backward_transfer,
+    get_last_setp_accuracy,
+    get_average_incremental_accuracy,
+    get_forgetting_rate,
+    CLMetrics,
+)
+from utils.annotation import Images, Labels
 from utils.annotation import (
     TaskLearner,
     PerformanceFunc,
@@ -52,11 +52,17 @@ hparams_dict = {}
 
 crop_size = 32
 
+
 def get_model(backbone: nn.Module) -> iCaRL:
     return iCaRL(backbone)
 
 
-def train_epoch(model: iCaRL, train_loader: DataLoader, loss_func: nn.Module, optimizer: optim.Optimizer) -> float:
+def train_epoch(
+    model: iCaRL,
+    train_loader: DataLoader,
+    loss_func: nn.Module,
+    optimizer: optim.Optimizer,
+) -> float:
     # logger.info(f"{train_epoch.__name__}")
     total_loss = 0
 
@@ -101,7 +107,8 @@ def train_epoch(model: iCaRL, train_loader: DataLoader, loss_func: nn.Module, op
             # The original paper just use the learned class logits of student logits to do distillation
             # ref: Page 3, Algorithm 3, \sum_{y=1}^{s-1}..., here y=1~s-1 means distill on learned class logits
             distillation_loss = distill_loss_func(
-                student_logits[:, :len(model.learned_classes)], teacher_logits)
+                student_logits[:, : len(model.learned_classes)], teacher_logits
+            )
 
         loss = classification_loss + distillation_loss
 
@@ -114,7 +121,12 @@ def train_epoch(model: iCaRL, train_loader: DataLoader, loss_func: nn.Module, op
     return total_loss / len(train_loader)
 
 
-def paper_train_epoch(model: iCaRL, train_loader: DataLoader, loss_func: nn.Module, optimizer: optim.Optimizer) -> float:
+def paper_train_epoch(
+    model: iCaRL,
+    train_loader: DataLoader,
+    loss_func: nn.Module,
+    optimizer: optim.Optimizer,
+) -> float:
     """
     This is the training code of original paper, which uses BCE loss for both new classes and learned classes.
 
@@ -157,7 +169,7 @@ def paper_train_epoch(model: iCaRL, train_loader: DataLoader, loss_func: nn.Modu
             # note, the output shape of teach logits and student logits are not the same, so alignment is necessary
             # The original paper just use the learned class logits of student logits to do distillation
             # ref: Page 3, Algorithm 3, \sum_{y=1}^{s-1}..., here y=1~s-1 means distill on learned class logits
-            label[:, :len(model.learned_classes)] = teacher_logits
+            label[:, : len(model.learned_classes)] = teacher_logits
 
         loss = loss_func(logits, label)
 
@@ -171,7 +183,12 @@ def paper_train_epoch(model: iCaRL, train_loader: DataLoader, loss_func: nn.Modu
 
 
 @torch.no_grad()
-def test_epoch(model: iCaRL, test_loader: DataLoader, perf_func: PerformanceFunc, num_cls_per_task: int) -> tuple[torch.FloatTensor, torch.FloatTensor]:
+def test_epoch(
+    model: iCaRL,
+    test_loader: DataLoader,
+    perf_func: PerformanceFunc,
+    num_cls_per_task: int,
+) -> tuple[torch.FloatTensor, torch.FloatTensor]:
     performance = []
 
     # Note: iCaRL use Nearest-Mean-of-Exemplars to classify, here using output logits just for monitor the learning
@@ -179,13 +196,16 @@ def test_epoch(model: iCaRL, test_loader: DataLoader, perf_func: PerformanceFunc
         image, label = image.to(device), label.to(device)
         preds = get_pred(get_probas(model(image)))
         performance.append(
-            perf_func(preds, label, len(model.learned_classes) + num_cls_per_task))
+            perf_func(preds, label, len(model.learned_classes) + num_cls_per_task)
+        )
 
     return sum(performance) / len(performance)
 
 
 @torch.no_grad()
-def calculate_cls_features(cls_data_loader: DataLoader, model: iCaRL) -> torch.FloatTensor:
+def calculate_cls_features(
+    cls_data_loader: DataLoader, model: iCaRL
+) -> torch.FloatTensor:
     cls_features = []
 
     image: torch.FloatTensor
@@ -200,16 +220,22 @@ def calculate_cls_features(cls_data_loader: DataLoader, model: iCaRL) -> torch.F
 
 
 @torch.no_grad()
-def calculate_exemplar_mean(dataset: SupportedDataset, exemplar_image: Images, exemplar_label: Labels, model: iCaRL) -> torch.FloatTensor:
+def calculate_exemplar_mean(
+    dataset,
+    exemplar_image: Images,
+    exemplar_label: Labels,
+    model: iCaRL,
+) -> torch.FloatTensor:
     # use test transforms here, for the predictions is made on test images
     _, transforms = get_transforms(
-        dataset=dataset, crop_size=crop_size, same_crop=False)
+        dataset=dataset, crop_size=crop_size, same_crop=False
+    )
 
-    exemplar_dataset = get_dataset(dataset)(
-        exemplar_image, exemplar_label, transforms)
+    exemplar_dataset = get_dataset(dataset)(exemplar_image, exemplar_label, transforms)
 
     exemplar_loader = DataLoader(
-        exemplar_dataset, batch_size=32, shuffle=False, num_workers=2)
+        exemplar_dataset, batch_size=32, shuffle=False, num_workers=2
+    )
 
     # [N, 512]
     cls_features = calculate_cls_features(exemplar_loader, model)
@@ -218,19 +244,27 @@ def calculate_exemplar_mean(dataset: SupportedDataset, exemplar_image: Images, e
 
 
 @torch.no_grad()
-def build_exemplar_set(dataset: SupportedDataset, cls_name: str, cls_id: int, exemplar_size: int, model: iCaRL) -> tuple[Images, Labels]:
+def build_exemplar_set(
+    dataset,
+    cls_name: str,
+    cls_id: int,
+    exemplar_size: int,
+    model: iCaRL,
+) -> tuple[Images, Labels]:
     cls_data_getter = get_cls_data_getter(dataset, "train")
 
     cls_images, cls_labels = cls_data_getter(cls_name, cls_id)
 
     # use test transforms here, for the predictions is made on test images
     _, transforms = get_transforms(
-        dataset=dataset, crop_size=crop_size, same_crop=False)
+        dataset=dataset, crop_size=crop_size, same_crop=False
+    )
 
     cls_data_dataset = get_dataset(dataset)(cls_images, cls_labels, transforms)
 
     cls_data_loader = DataLoader(
-        cls_data_dataset, batch_size=32, shuffle=False, num_workers=2)
+        cls_data_dataset, batch_size=32, shuffle=False, num_workers=2
+    )
 
     # get features
     # [N, 512]
@@ -256,8 +290,7 @@ def build_exemplar_set(dataset: SupportedDataset, cls_name: str, cls_id: int, ex
             else torch.zeros_like(cls_mean)
         )
         # [N-k, 512]
-        summation = cls_mean - 1 / k * \
-            (cls_features + current_sum)
+        summation = cls_mean - 1 / k * (cls_features + current_sum)
         # [N-k]
         norm = summation.norm(p=2, dim=1, keepdim=False)
         kth_exemplar_idx = norm.argmin(dim=0).cpu().item()
@@ -265,8 +298,7 @@ def build_exemplar_set(dataset: SupportedDataset, cls_name: str, cls_id: int, ex
         # add k-th exemplar into the exemplar set
         exemplar_images.append(cls_images[kth_exemplar_idx])
         exemplar_labels.append(cls_labels[kth_exemplar_idx])
-        exemplar_features.append(
-            cls_features[kth_exemplar_idx].unsqueeze(dim=0))
+        exemplar_features.append(cls_features[kth_exemplar_idx].unsqueeze(dim=0))
 
         # remove k-th exemplar from cls_images/cls_labels/cls_features
         available_mask[kth_exemplar_idx] = False
@@ -284,7 +316,14 @@ def build_exemplar_set(dataset: SupportedDataset, cls_name: str, cls_id: int, ex
 def get_task_learner() -> TaskLearner:
     num_task_learned = 0
 
-    def task_learner(task_id: int, current_task: list[str], num_cls_per_task: int, model: iCaRL, train_loader: DataLoader, test_loader: DataLoader) -> iCaRL:
+    def task_learner(
+        task_id: int,
+        current_task: list[str],
+        num_cls_per_task: int,
+        model: iCaRL,
+        train_loader: DataLoader,
+        test_loader: DataLoader,
+    ) -> iCaRL:
 
         loss_func = nn.CrossEntropyLoss()
 
@@ -294,22 +333,24 @@ def get_task_learner() -> TaskLearner:
         optimizer = optim.SGD(model.parameters(), lr=1e-3, weight_decay=5e-5)
 
         scheduler = torch.optim.lr_scheduler.MultiStepLR(
-            optimizer, milestones=[49, 63], gamma=0.2)
+            optimizer, milestones=[49, 63], gamma=0.2
+        )
 
         log_times = 5
         num_epoch = 70
         for epoch in range(num_epoch):
-            train_loss = train_epoch(
-                model, train_loader, loss_func, optimizer)
+            train_loss = train_epoch(model, train_loader, loss_func, optimizer)
 
-            test_top1_acc = test_epoch(model, test_loader, get_top1_acc,
-                                       num_cls_per_task) * 100
+            test_top1_acc = (
+                test_epoch(model, test_loader, get_top1_acc, num_cls_per_task) * 100
+            )
 
             scheduler.step()
 
             if (epoch + 1) % (num_epoch // log_times) == 0:
                 logger.info(
-                    f"\tEpoch [{num_epoch}/{epoch+1:>{len(str(num_epoch))}d}], {train_loss=:.3f}, {test_top1_acc=:.2f}")
+                    f"\tEpoch [{num_epoch}/{epoch+1:>{len(str(num_epoch))}d}], {train_loss=:.3f}, {test_top1_acc=:.2f}"
+                )
 
             # log training
             training_watcher = {
@@ -319,8 +360,11 @@ def get_task_learner() -> TaskLearner:
 
             # watch training
             for watcher_name, watcher_value in training_watcher.items():
-                writer.add_scalar(f"Task Learning/{watcher_name}",
-                                  scalar_value=watcher_value, global_step=epoch + task_id * num_epoch)
+                writer.add_scalar(
+                    f"Task Learning/{watcher_name}",
+                    scalar_value=watcher_value,
+                    global_step=epoch + task_id * num_epoch,
+                )
 
         # log hparams
         nonlocal num_task_learned
@@ -337,23 +381,33 @@ def get_task_learner() -> TaskLearner:
         num_task_learned += 1
 
         return model
+
     return task_learner
 
 
-def get_continual_learning_ability_tester(task_num: int, num_cls_per_task: int) -> CLAbilityTester:
+def get_continual_learning_ability_tester(
+    task_num: int, num_cls_per_task: int
+) -> CLAbilityTester:
 
     num_cls_per_task = num_cls_per_task
     cl_matrix = np.zeros((task_num, task_num))
 
-    metrics_getter = CLMetrics({
-        "Backward Transfer": get_backward_transfer,
-        "Forgetting Rate": get_forgetting_rate,
-        "Last Step Accuracy": get_last_setp_accuracy,
-        "Average Incremental Accuracy": get_average_incremental_accuracy,
-    })
+    metrics_getter = CLMetrics(
+        {
+            "Backward Transfer": get_backward_transfer,
+            "Forgetting Rate": get_forgetting_rate,
+            "Last Step Accuracy": get_last_setp_accuracy,
+            "Average Incremental Accuracy": get_average_incremental_accuracy,
+        }
+    )
 
-    @ torch.no_grad
-    def continual_learning_ability_tester(task_id: int, learned_tasks: list[list[str]], learned_task_loaders: list[DataLoader], model: iCaRL) -> tuple[np.ndarray, dict[str, float]]:
+    @torch.no_grad
+    def continual_learning_ability_tester(
+        task_id: int,
+        learned_tasks: list[list[str]],
+        learned_task_loaders: list[DataLoader],
+        model: iCaRL,
+    ) -> tuple[np.ndarray, dict[str, float]]:
         nonlocal cl_matrix, num_cls_per_task, metrics_getter
 
         # test on all tasks, including previous and current task
@@ -374,11 +428,12 @@ def get_continual_learning_ability_tester(task_num: int, num_cls_per_task: int) 
             cl_matrix[i, task_id] = sum(performance) / len(performance)
 
             logger.info(
-                f"\ttest on task {i}, test_acc={cl_matrix[i, task_id]: .2f}, {learned_tasks[i]}")
+                f"\ttest on task {i}, test_acc={cl_matrix[i, task_id]: .2f}, {learned_tasks[i]}"
+            )
 
         # calculate continual learning ability metrics and log to summarywriter
         if task_id >= 1:
-            current_cl_matrix = cl_matrix[:task_id+1, :task_id+1]
+            current_cl_matrix = cl_matrix[: task_id + 1, : task_id + 1]
 
             current_metrics = metrics_getter(current_cl_matrix, "mean")
 
@@ -388,7 +443,7 @@ def get_continual_learning_ability_tester(task_num: int, num_cls_per_task: int) 
                     writer.add_scalar(
                         tag=f"Continual Learning Metrics/{metric_name}",
                         scalar_value=metric_value,
-                        global_step=task_id
+                        global_step=task_id,
                     )
 
         # draw heatmap of cl_matrix and log to summarywriter
@@ -406,7 +461,8 @@ def get_continual_learning_ability_tester(task_num: int, num_cls_per_task: int) 
 def continual_learning(args: argparse.Namespace):
 
     dataset_getter = CLDatasetGetter(
-        dataset=args.dataset, task_num=args.num_tasks, fixed_task=args.fixed_tasks)
+        dataset=args.dataset, task_num=args.num_tasks, fixed_task=args.fixed_tasks
+    )
 
     model: iCaRL
     model = iCaRL().to(device)
@@ -424,8 +480,11 @@ def continual_learning(args: argparse.Namespace):
     # get task learner and cl-ability tester
     task_learner: TaskLearner = get_task_learner()
 
-    continual_learning_ability_tester: CLAbilityTester = get_continual_learning_ability_tester(
-        dataset_getter.task_num, dataset_getter.num_cls_per_task)
+    continual_learning_ability_tester: CLAbilityTester = (
+        get_continual_learning_ability_tester(
+            dataset_getter.task_num, dataset_getter.num_cls_per_task
+        )
+    )
 
     train_dataset: Cifar100Dataset
     test_dataset: Cifar100Dataset
@@ -441,22 +500,32 @@ def continual_learning(args: argparse.Namespace):
             current_task_images: Images = train_dataset.images
             current_task_labels: Labels = train_dataset.labels
             train_dataset.images = np.concatenate(
-                (current_task_images, exemplar_images), axis=0)
+                (current_task_images, exemplar_images), axis=0
+            )
             train_dataset.labels = np.concatenate(
-                (current_task_labels, exemplar_labels), axis=0)
+                (current_task_labels, exemplar_labels), axis=0
+            )
 
         # get dataloader
         train_loader = DataLoader(
-            train_dataset, batch_size=32, shuffle=True, num_workers=2)
+            train_dataset, batch_size=32, shuffle=True, num_workers=2
+        )
         test_loader = DataLoader(
-            test_dataset, batch_size=32, shuffle=False, num_workers=2)
+            test_dataset, batch_size=32, shuffle=False, num_workers=2
+        )
 
         # learn the new task
         with model.set_new_task(current_task):
 
             logger.success(f"{task_id=}, {current_task=}")
             model = task_learner(
-                task_id, current_task, dataset_getter.num_cls_per_task, model, train_loader, test_loader)
+                task_id,
+                current_task,
+                dataset_getter.num_cls_per_task,
+                model,
+                train_loader,
+                test_loader,
+            )
 
         # exemplar set management
         # reduce existing exemplar sets
@@ -469,7 +538,8 @@ def continual_learning(args: argparse.Namespace):
 
             # note: after reducing the exemplar set, the cls mean need to be recalculated
             model.exemplar_means[cls_name] = calculate_exemplar_mean(
-                "cifar100", reduced_image, reduced_label, model)
+                "cifar100", reduced_image, reduced_label, model
+            )
 
         # build exemplar sets for new classes
         for cls_name in current_task:
@@ -477,13 +547,15 @@ def continual_learning(args: argparse.Namespace):
 
             # get exemplar images and labels
             exemplar_image, exemplar_label = build_exemplar_set(
-                "cifar100", cls_name, cls_id, exemplar_size, model)
+                "cifar100", cls_name, cls_id, exemplar_size, model
+            )
 
             exemplar_set[cls_name] = (exemplar_image, exemplar_label)
 
             # save exemplar set means to model
             model.exemplar_means[cls_name] = calculate_exemplar_mean(
-                "cifar100", exemplar_image, exemplar_label, model)
+                "cifar100", exemplar_image, exemplar_label, model
+            )
 
         # save the test loader for continual learning testing
         learned_tasks.append(current_task)
@@ -491,22 +563,24 @@ def continual_learning(args: argparse.Namespace):
 
         # test continual learning performance using standard metrics
         cl_matrix, metrics = continual_learning_ability_tester(
-            task_id, learned_tasks, learned_task_loaders, model)
+            task_id, learned_tasks, learned_task_loaders, model
+        )
 
         # test continual learning performance using iCaRL's metric
-        value = cl_matrix[0,
-                          0] if task_id == 0 else metrics["Last Step Accuracy"]
+        value = cl_matrix[0, 0] if task_id == 0 else metrics["Last Step Accuracy"]
         metrics["Average Accuracy of Learned Classes"] = value
 
         writer.add_scalar(
             tag="iCaRL/Average Accuracy of Learned Classes",
             scalar_value=value,
-            global_step=task_id
+            global_step=task_id,
         )
 
         if metrics is not None:
             logger.debug(
-                "\t" + ", ".join([f"{key}={value:.2f}" for key, value in metrics.items()]))
+                "\t"
+                + ", ".join([f"{key}={value:.2f}" for key, value in metrics.items()])
+            )
 
     # writer.add_hparams(hparams_dict, metrics_dict)
 
@@ -527,10 +601,14 @@ def continual_learning(args: argparse.Namespace):
 def get_args(argument_list: list[str]) -> tuple[argparse.Namespace, list[str]]:
     parser = argparse.ArgumentParser(description="Train iCaRL")
 
-    parser.add_argument("--buffer_size", type=int,
-                        default=2000, help="size of buffer, i.e. examplar size")
+    parser.add_argument(
+        "--buffer_size",
+        type=int,
+        default=2000,
+        help="size of buffer, i.e. examplar size",
+    )
     model_args, unknow_args = parser.parse_known_args(argument_list)
-    
+
     return model_args, unknow_args
 
 
