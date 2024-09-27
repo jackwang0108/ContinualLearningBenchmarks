@@ -1,6 +1,7 @@
 """
 deprecated
 """
+
 # Standard Library
 import random
 from typing import Optional
@@ -17,7 +18,6 @@ import torchvision.transforms as transforms
 import torchvision.transforms.functional as functional
 
 # My Library
-from .annotation import SupportedDataset, Split
 
 
 class SameRandomStateContext:
@@ -29,7 +29,7 @@ class SameRandomStateContext:
 
 
 class SeedableRandomSquareCrop:
-    """ Apply a random square crop to the input image with a seedable behavior. The random crop status could be fixed. """
+    """Apply a random square crop to the input image with a seedable behavior. The random crop status could be fixed."""
 
     def __init__(self, size: int):
         self.size = size
@@ -85,12 +85,14 @@ def get_rgb_transform(
 
     # Transforms for training
     if not is_eval:
-        img_transforms.extend([
-            transforms.RandomHorizontalFlip(),
-            transforms.RandomErasing(),
-            # this slows down training aaaaaa lot
-            # transforms.RandomRotation(30, expand=False)
-        ])
+        img_transforms.extend(
+            [
+                transforms.RandomHorizontalFlip(),
+                transforms.RandomErasing(),
+                # this slows down training aaaaaa lot
+                # transforms.RandomRotation(30, expand=False)
+            ]
+        )
 
     return transforms.Compose(img_transforms)
 
@@ -124,7 +126,8 @@ class UnifiedTransforms(nn.Module):
         self.to_tensor = transforms.ToTensor()
         self.rgb_transform = get_rgb_transform(is_eval)
         self.crop_transform = get_crop_transform(
-            size=crop_size, is_eval=is_eval, same_crop=same_crop)
+            size=crop_size, is_eval=is_eval, same_crop=same_crop
+        )
 
         self.normalize = transforms.Normalize(mean=mean, std=std)
 
@@ -150,7 +153,7 @@ class UnifiedTransforms(nn.Module):
 
 
 def get_transforms(
-    dataset: SupportedDataset,
+    dataset,
     crop_size: Optional[int] = 32,
     same_crop: Optional[bool] = False,
 ) -> tuple[UnifiedTransforms, UnifiedTransforms]:
@@ -164,11 +167,22 @@ def get_transforms(
 
     # train transform
     train_transform = UnifiedTransforms(
-        mean=mean, std=std, is_eval=False, use_crop=use_crop, same_crop=same_crop, crop_size=crop_size)
+        mean=mean,
+        std=std,
+        is_eval=False,
+        use_crop=use_crop,
+        same_crop=same_crop,
+        crop_size=crop_size,
+    )
 
     # test transform
     test_transform = UnifiedTransforms(
-        mean=mean, std=std, is_eval=True, use_crop=use_crop,
-        same_crop=True, crop_size=crop_size)
+        mean=mean,
+        std=std,
+        is_eval=True,
+        use_crop=use_crop,
+        same_crop=True,
+        crop_size=crop_size,
+    )
 
     return train_transform, test_transform
