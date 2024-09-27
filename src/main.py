@@ -290,6 +290,7 @@ def get_args() -> tuple[CLAlgoModule, Namespace, Namespace, list[str]]:
     parser.add_argument("--fixed_tasks", default=False, action="store_true", help="if use predefined task list")
     
     # training arguments
+    parser.add_argument("--lr", type=float, default=1e-3, help="starting learning rate")
     parser.add_argument("--epochs", type=int, default=100, help="number of training epochs")
     parser.add_argument("--batch_size", type=int, default=32, help="number of images in a batch")
 
