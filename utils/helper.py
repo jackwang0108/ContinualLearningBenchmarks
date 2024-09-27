@@ -142,6 +142,9 @@ def get_forgetting_rate(
     return _reduction(R_i - R_iN, reduction)
 
 
+# TODO: 计算Recall, Precision等指标
+
+
 @torch.no_grad()
 def get_top1_acc(
     top1_pred: torch.FloatTensor, gt: torch.FloatTensor, num_cls: int
