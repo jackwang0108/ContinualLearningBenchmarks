@@ -34,7 +34,10 @@
                 "--model",
                 "${input:clalgo}",
                 "--backbone",
-                "resnet18"
+                "resnet18",
+                "--epochs",
+                "${input:epoch}",
+                "--fixed_tasks"
             ],
             "console": "integratedTerminal"
         },
@@ -53,9 +56,21 @@
             "description": "which cl algorithm you want to debug?",
             "options": [
                 "finetune",
-                "iCaRL"
+                "iCaRL",
+                "new_icarl"
             ],
             "default": "finetune"
+        },
+        {
+            "id": "epoch",
+            "type": "pickString",
+            "description": "how many epochs you want to run?",
+            "options": [
+                "1",
+                "5",
+                "100"
+            ],
+            "default": "1"
         }
     ]
 }
