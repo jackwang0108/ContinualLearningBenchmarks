@@ -171,12 +171,17 @@ def get_transforms() -> tuple[transforms.Compose, transforms.Compose, DeNormaliz
 class Cifar100Dataset(Dataset):
 
     def __init__(
-        self, images: Images, labels: Labels, transforms: Optional[nn.Module] = None
+        self,
+        images: Images,
+        labels: Labels,
+        transforms: transforms.Compose,
+        denorm_transforms: transforms.Compose,
     ) -> None:
         super().__init__()
         self.images = images
         self.labels = labels
         self.transforms = transforms
+        self.denorm_transforms = denorm_transforms
 
     def __len__(self) -> int:
         return len(self.labels)

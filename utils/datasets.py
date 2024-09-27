@@ -186,9 +186,17 @@ class CLDatasetGetter:
         )
 
         train_dataset = dataset(
-            task_images_train, task_labels_train, self.train_transform
+            task_images_train,
+            task_labels_train,
+            self.train_transform,
+            self.denorm_transform,
         )
-        test_dataset = dataset(task_images_test, task_labels_test, self.test_transform)
+        test_dataset = dataset(
+            task_images_test,
+            task_labels_test,
+            self.test_transform,
+            self.denorm_transform,
+        )
 
         return self.current_task_id, self.current_task, train_dataset, test_dataset
 

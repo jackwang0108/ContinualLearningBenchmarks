@@ -18,12 +18,16 @@ class DeNormalize(object):
         Returns:
             Tensor: De-Normalized image.
         """
-        mean = torch.tensor(self.mean).view(
-            (1, 3, 1, 1) if image.ndim == 4 else (3, 1, 1)
+        mean = (
+            torch.tensor(self.mean)
+            .to(device=image.device)
+            .view((1, 3, 1, 1) if image.ndim == 4 else (3, 1, 1))
         )
 
-        std = torch.tensor(self.std).view(
-            (1, 3, 1, 1) if image.ndim == 4 else (3, 1, 1)
+        std = (
+            torch.tensor(self.std)
+            .to(device=image.device)
+            .view((1, 3, 1, 1) if image.ndim == 4 else (3, 1, 1))
         )
 
         image.mul_(std).add_(mean)
