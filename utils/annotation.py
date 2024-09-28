@@ -32,4 +32,9 @@ CLAbilityTester = Callable[
     tuple[np.ndarray, Optional[dict[str, float]]],
 ]
 
+CollateFunc = Callable[
+    [list[tuple[torch.FloatTensor, np.ndarray, np.int64]]],
+    tuple[torch.FloatTensor, torch.FloatTensor, torch.LongTensor],
+]
+
 MetricFunc = Callable[[np.ndarray, Literal["mean", "none"]], float | np.ndarray]
