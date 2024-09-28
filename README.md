@@ -1,3 +1,8 @@
-# CLStarter
+# Continual Learning Benchmarks
 
-Starter code of Continual Learning which learns a model under Continual Learning paradigms.
+This repository contains implementations of some popular continual learning algorithms.
+
+
+## Usage
+
+I've provided some commands unders `scripts/XXXX.sh`, check them for detail.
