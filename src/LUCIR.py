@@ -87,13 +87,14 @@ def get_args(argument_list: list[str]) -> tuple[Namespace, list[str]]:
         choices=["Adam", "SGD"],
         help="which optimizer to use",
     )
-    model_args, unknow_args = parser.parse_known_args(argument_list)
+    model_args, unknown_args = parser.parse_known_args(argument_list)
 
-    return model_args, unknow_args
+    return model_args, unknown_args
 
 
 @torch.no_grad()
 def get_preds(cl_model: LUCIR, images: torch.FloatTensor):
+    # sourcery skip: inline-immediately-returned-variable
     logits: torch.FloatTensor
     scaled_logits: torch.FloatTensor
     normalized_features, logits, scaled_logits = cl_model(images)
@@ -422,10 +423,10 @@ def test_epoch(
 ) -> tuple[torch.FloatTensor, torch.FloatTensor]:
     performance = []
 
-    for augmened_image, original_image, label in test_loader:
-        augmened_image, label = augmened_image.to(device), label.to(device)
+    for augmented_image, original_image, label in test_loader:
+        augmented_image, label = augmented_image.to(device), label.to(device)
 
-        preds = get_preds(cl_model, augmened_image)
+        preds = get_preds(cl_model, augmented_image)
         performance.append(perf_func(preds, label, num_total_class))
 
     return sum(performance) / len(performance)

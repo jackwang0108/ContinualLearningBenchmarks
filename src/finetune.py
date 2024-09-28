@@ -44,13 +44,14 @@ def get_args(argument_list: list[str]) -> tuple[Namespace, list[str]]:
         choices=["Adam", "SGD"],
         help="which optimizer to use",
     )
-    model_args, unknow_args = parser.parse_known_args(argument_list)
+    model_args, unknown_args = parser.parse_known_args(argument_list)
 
-    return model_args, unknow_args
+    return model_args, unknown_args
 
 
 @torch.no_grad()
 def get_preds(cl_model: Finetune, images: torch.FloatTensor) -> torch.LongTensor:
+    # sourcery skip: inline-immediately-returned-variable
     logits: torch.FloatTensor = cl_model(images)
     probas = logits.softmax(dim=-1)
     preds = probas.argmax(dim=-1)

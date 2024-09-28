@@ -47,7 +47,7 @@ def get_args(argument_list: list[str]) -> tuple[Namespace, list[str]]:
         "--buffer_size",
         type=int,
         default=2000,
-        help="size of buffer, i.e. examplar size",
+        help="size of buffer, i.e. exemplar size",
     )
     parser.add_argument(
         "--optim",
@@ -56,9 +56,9 @@ def get_args(argument_list: list[str]) -> tuple[Namespace, list[str]]:
         choices=["Adam", "SGD"],
         help="which optimizer to use",
     )
-    model_args, unknow_args = parser.parse_known_args(argument_list)
+    model_args, unknown_args = parser.parse_known_args(argument_list)
 
-    return model_args, unknow_args
+    return model_args, unknown_args
 
 
 @torch.no_grad()
@@ -414,11 +414,11 @@ def test_epoch(
 ) -> tuple[torch.FloatTensor, torch.FloatTensor]:
     performance = []
 
-    for augmened_image, original_image, label in test_loader:
-        augmened_image, label = augmened_image.to(device), label.to(device)
+    for augmented_image, original_image, label in test_loader:
+        augmented_image, label = augmented_image.to(device), label.to(device)
 
         # iCaRL use Nearest-Mean-of-Exemplar to classify, so use that here
-        preds = get_preds(cl_model, augmened_image)
+        preds = get_preds(cl_model, augmented_image)
         performance.append(perf_func(preds, label, num_total_class))
 
     return sum(performance) / len(performance)
@@ -479,7 +479,7 @@ def get_task_learner(
             print_interval = num_epoch // main_args.log_times
             if (epoch + 1) % (print_interval if print_interval != 0 else 1) == 0:
                 logger.info(
-                    f"\tEpoch [{num_epoch}/{epoch+1:>{len(str(num_epoch))}d}], {train_loss=:.3f}, test_top1_acc not avaliable for iCaRL when learning current task"
+                    f"\tEpoch [{num_epoch}/{epoch+1:>{len(str(num_epoch))}d}], {train_loss=:.3f}, test_top1_acc not available for iCaRL when learning current task"
                 )
 
             # log global
