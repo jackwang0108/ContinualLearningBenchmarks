@@ -288,7 +288,7 @@ def get_args() -> tuple[CLAlgoModule, Namespace, Namespace, list[str]]:
     parser.add_argument("--model", type=str,
                         default="finetune", choices=src.avaliable_model, help="continual learning model to train")
     parser.add_argument("--backbone", type=str,
-                        default="resnet18", choices=model.avaliable_backbone, help="vision backbones")
+                        default="resnet18", choices=model.available_backbone, help="vision backbones")
     parser.add_argument("--pretrained", default=False, action="store_true", help="if use pretrained backbone")
     parser.add_argument("--dataset", type=str,
                         default="cifar100", choices=utils.datasets.avaliable_datasets, help="datasets to use")

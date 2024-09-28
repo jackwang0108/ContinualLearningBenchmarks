@@ -25,14 +25,14 @@ __all__ = [
     "LingoCL"
 ]
 
-AvaliableBackbone = Literal[
+AvailableBackbone = Literal[
     "resnet18", "resnet34", "resnet50", "resnet101", "resnet152"
 ]
-avaliable_backbone = get_args(AvaliableBackbone)
+available_backbone = get_args(AvailableBackbone)
 
 
-def get_backbone(backbone: AvaliableBackbone, pretrained: bool=False) -> nn.Module:
-    assert backbone in avaliable_backbone, f"unknown backbone: {backbone}, avaliable backbones are {avaliable_backbone}"
+def get_backbone(backbone: AvailableBackbone, pretrained: bool=False) -> nn.Module:
+    assert backbone in available_backbone, f"unknown backbone: {backbone}, available backbones are {available_backbone}"
     if backbone.startswith("resnet"):
         
         weights = None
