@@ -180,9 +180,11 @@ class CLDatasetGetter:
 
     def get_collate_fn(self, allow_default: bool = False) -> CollateFunc:
         collate_fn = getattr(self.dataset_module, "collate_fn", None)
-        if collate_fn is not None and allow_default:
+        if collate_fn is None and allow_default:
             collate_fn = default_collate_fn
-        assert collate_fn is None, f"no collate_fn provided for dataset {self.dataset}"
+        assert (
+            collate_fn is not None
+        ), f"no collate_fn provided for dataset {self.dataset}"
         return collate_fn
 
     def __iter__(self):
