@@ -206,14 +206,14 @@ def continual_learning(
             batch_size=main_args.batch_size,
             shuffle=True,
             num_workers=2,
-            collate_fn=dataset_getter.get_collate_fn(),
+            collate_fn=dataset_getter.get_collate_fn(allow_default=True),
         )
         test_loader = DataLoader(
             test_dataset,
             batch_size=main_args.batch_size,
-            shuffle=False,
+            shuffle=True,
             num_workers=2,
-            collate_fn=dataset_getter.get_collate_fn(),
+            collate_fn=dataset_getter.get_collate_fn(allow_default=True),
         )
 
         # learn the new task
