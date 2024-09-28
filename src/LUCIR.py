@@ -38,6 +38,8 @@ K: int = None
 m: float = None
 lambda_base: float = None
 device: torch.device = None
+each_buffer_size: int = None
+total_buffer_size: int = None
 memory_buffers: dict[str, tuple[tuple[np.ndarray, torch.FloatTensor], Labels]] = None
 
 
@@ -49,10 +51,16 @@ def get_args(argument_list: list[str]) -> tuple[Namespace, list[str]]:
     parser = argparse.ArgumentParser(description="Train LUCIR")
 
     parser.add_argument(
-        "--num_example",
+        "--each_buffer_size",
         type=int,
-        default=20,
+        default=0,
         help="number of examples store in the memory buffer of a given class",
+    )
+    parser.add_argument(
+        "--total_buffer_size",
+        type=int,
+        default=0,
+        help="number of total examples store in the memory buffer of all class",
     )
     parser.add_argument(
         "--lambda_base",
@@ -63,7 +71,7 @@ def get_args(argument_list: list[str]) -> tuple[Namespace, list[str]]:
     parser.add_argument(
         "--m",
         type=float,
-        default=5,
+        default=0.5,
         help="value of margin threshold",
     )
     parser.add_argument(
@@ -133,7 +141,7 @@ def finish_new_task(
     """
     for LUCIR, after learned each task, we need to build memory buffer of new classes
     """
-    global device, memory_buffers
+    global device, memory_buffers, each_buffer_size, total_buffer_size
 
     logger = kwargs["logger"]
     task_id = kwargs["task_id"]
@@ -143,7 +151,31 @@ def finish_new_task(
     train_dataset: Dataset = kwargs["train_dataset"]
     cls_id_mapper: dict[str, int] = kwargs["cls_id_mapper"]
 
-    num_example: int = module_args.num_example
+    buffer_size = (
+        each_buffer_size
+        if each_buffer_size != 0
+        else total_buffer_size // len(cl_model.learned_classes)
+    )
+
+    if task_id == 0:
+        logger.success("\treducing existing exemplar sets")
+
+    if total_buffer_size > 0:
+        buffer_size = total_buffer_size // len(cl_model.learned_classes)
+
+        for cls_name in memory_buffers:
+            # 0 is image, 1 is label, 2 is mean feature
+            reduced_image = memory_buffers[cls_name][0]
+            reduced_label = memory_buffers[cls_name][1][:buffer_size]
+
+            # 0 is original image, 1 is augmented image
+            reduced_original_image = reduced_image[0][:buffer_size]
+            reduced_augmented_image = reduced_image[1][:buffer_size]
+
+            memory_buffers[cls_name] = (
+                (reduced_original_image, reduced_augmented_image),
+                reduced_label,
+            )
 
     # build exemplar sets for new classes
     logger.success(f"\tbuilding exemplar sets for {task_id=}")
@@ -173,7 +205,7 @@ def finish_new_task(
             exemplar_original_image,
             exemplar_augmented_image,
         ) = build_exemplar_set(
-            cl_model, labels, original_image, augmented_image, num_example
+            cl_model, labels, original_image, augmented_image, buffer_size
         )
 
         memory_buffers[cls_name] = (
@@ -403,11 +435,23 @@ def get_task_learner(
     main_args: Namespace, module_args: Namespace, **kwargs: dict[str, Any]
 ) -> TaskLearner:
 
-    global m, K, lambda_base
+    global m, K, lambda_base, each_buffer_size, total_buffer_size
 
     m = float(module_args.m)
     K = int(module_args.K)
     lambda_base = float(module_args.lambda_base)
+
+    each_buffer_size = int(module_args.each_buffer_size)
+    total_buffer_size = int(module_args.total_buffer_size)
+
+    assert (
+        each_buffer_size + total_buffer_size != 0
+    ), "no memory buffer management policy provided!"
+    assert not (
+        each_buffer_size > 0 ^ total_buffer_size > 0
+    ), "multiple memory buffer management policy provided!"
+
+    assert module_args
 
     num_task_learned = 0
 

@@ -47,7 +47,10 @@ class CosineClassifier(nn.Module):
 
     @staticmethod
     def init_from_existing_classsifier(
-        other: "CosineClassifier", in_features: int, out_features: int
+        other: "CosineClassifier",
+        in_features: int,
+        out_features: int,
+        allow_training: bool = True,
     ) -> "CosineClassifier":
 
         this = CosineClassifier(in_features, out_features)
@@ -57,6 +60,13 @@ class CosineClassifier(nn.Module):
         this.class_embeddings.append(
             nn.Parameter(torch.randn(out_features, in_features))
         )
+
+        if allow_training:
+            this.eta.requires_grad = True
+            for param in this.class_embeddings.parameters():
+                param.requires_grad = True
+
+        this.train()
 
         return this
 
@@ -90,7 +100,7 @@ class LUCIR(nn.Module, ContinualLearningModel):
 
         # before the start learning the task, expand the classifier
 
-        # create new weight vectors
+        # create new classifier
         self.current_classifier = CosineClassifier(self.feature_dim, num_cls)
 
         if len(self.previous_classifiers) > 0:
@@ -102,6 +112,23 @@ class LUCIR(nn.Module, ContinualLearningModel):
                 previous_classifier, self.feature_dim, num_cls
             )
 
+            # freeze the current classifier and switch to evaluation mode
+            self.previous_classifiers[-1].eval()
+            for param in self.previous_feature_extractors[-1].parameters():
+                param.requires_grad = False
+
+            # freeze previous feature extractor and switch to evaluation mode
+            self.previous_feature_extractors[-1].eval()
+            for param in self.previous_feature_extractors[-1].parameters():
+                param.requires_grad = False
+
+            self.previous_nets.append(
+                nn.Sequential(
+                    self.previous_feature_extractors[-1],
+                    self.previous_classifiers[-1],
+                )
+            )
+
         self.current_classifier = self.current_classifier.to(
             device=next(self.feature_extractor.parameters()).device
         )
@@ -109,26 +136,9 @@ class LUCIR(nn.Module, ContinualLearningModel):
         # return to task learning
         yield self
 
-        # after the task, save the feature extractor and weight vectors
+        # after the task, save the feature extractor and classifier
         self.previous_classifiers.append(copy.deepcopy(self.current_classifier))
         self.previous_feature_extractors.append(copy.deepcopy(self.feature_extractor))
-
-        # freeze the current weight vector and switch to evaluation mode
-        self.previous_classifiers[-1].eval()
-        for param in self.previous_feature_extractors[-1].parameters():
-            param.requires_grad = False
-
-        # freeze previous feature extractor and switch to evaluation mode
-        self.previous_feature_extractors[-1].eval()
-        for param in self.previous_feature_extractors[-1].parameters():
-            param.requires_grad = False
-
-        self.previous_nets.append(
-            nn.Sequential(
-                self.previous_feature_extractors[-1],
-                self.previous_classifiers[-1],
-            )
-        )
 
         # expand the learned classes
         self.learned_classes.extend(task)
