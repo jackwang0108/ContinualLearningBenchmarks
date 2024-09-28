@@ -30,8 +30,8 @@ from .annotation import (
 
 
 Split = Literal["train", "val", "test"]
-AvaliableDatasets = Literal["cifar100"]
-avaliable_datasets = get_args(AvaliableDatasets)
+AvailableDatasets = Literal["cifar100"]
+available_datasets = get_args(AvailableDatasets)
 
 
 class CLDatasetModule(Protocol):
@@ -89,7 +89,7 @@ class CLDatasetModule(Protocol):
 
 
 def get_tasks(
-    dataset: AvaliableDatasets, cls_names: list[str], task_num: int, fixed_tasks: bool
+    dataset: AvailableDatasets, cls_names: list[str], task_num: int, fixed_tasks: bool
 ) -> list[Task]:
     if fixed_tasks:
         return conf.fixed_task[dataset]
@@ -120,7 +120,7 @@ def default_collate_fn(
 class CLDatasetGetter:
     def __init__(
         self,
-        dataset: AvaliableDatasets,
+        dataset: AvailableDatasets,
         task_num: int = 10,
         fixed_task: bool = False,
         given_tasks: Optional[list[Task]] = None,
@@ -128,8 +128,8 @@ class CLDatasetGetter:
         # sourcery skip: assign-if-exp
 
         assert (
-            dataset in avaliable_datasets
-        ), f"unsupported dataset: {dataset}, current avaliable datasets: {avaliable_datasets}"
+            dataset in available_datasets
+        ), f"unsupported dataset: {dataset}, current available datasets: {available_datasets}"
 
         self.dataset = dataset
         self.task_num = task_num
@@ -143,9 +143,7 @@ class CLDatasetGetter:
         # get class names and tasks
         if given_tasks or fixed_task:
             # if user has given a task list or using the predefined task list
-            self.tasks = (
-                given_tasks if given_tasks else get_tasks(dataset, None, None, True)
-            )
+            self.tasks = given_tasks or get_tasks(dataset, None, None, True)
             cls_names = list(chain.from_iterable(self.tasks))
         else:
             # else using a random generated task list
@@ -242,13 +240,14 @@ if __name__ == "__main__":
     from typing import get_args
     from .helper import draw_image
 
-    def test_CLDatasetGetter(dataset: AvaliableDatasets, task_num: int):
-        assert dataset in avaliable_datasets, f"Invalid {dataset=}"
+    def test_CLDatasetGetter(dataset: AvailableDatasets, task_num: int):
+        assert dataset in available_datasets, f"Invalid {dataset=}"
 
         dataset_getter = CLDatasetGetter("cifar100", task_num, False)
 
         train_dataset: cifar100.Cifar100Dataset
         test_dataset: cifar100.Cifar100Dataset
+        # sourcery skip: no-loop-in-tests
         for task_id, cls_names, train_dataset, test_dataset in dataset_getter:
             train_loader = DataLoader(
                 train_dataset,
@@ -295,7 +294,7 @@ if __name__ == "__main__":
 
             draw_image(
                 augmented_image,
-                f"./test/{test_CLDatasetGetter.__name__}-{dataset=}-{task_num=}-{task_id=}-test-aumented.png",
+                f"./test/{test_CLDatasetGetter.__name__}-{dataset=}-{task_num=}-{task_id=}-test-augmented.png",
             )
 
             draw_image(

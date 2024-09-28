@@ -291,7 +291,7 @@ def get_args() -> tuple[CLAlgoModule, Namespace, Namespace, list[str]]:
                         default="resnet18", choices=model.available_backbone, help="vision backbones")
     parser.add_argument("--pretrained", default=False, action="store_true", help="if use pretrained backbone")
     parser.add_argument("--dataset", type=str,
-                        default="cifar100", choices=utils.datasets.avaliable_datasets, help="datasets to use")
+                        default="cifar100", choices=utils.datasets.available_datasets, help="datasets to use")
     parser.add_argument("--num_tasks", type=int, default=10, help="number of tasks")
     parser.add_argument("--fixed_tasks", default=False, action="store_true", help="if use predefined task list")
     
@@ -329,14 +329,14 @@ def get_args() -> tuple[CLAlgoModule, Namespace, Namespace, list[str]]:
         CLAlgoModule, importlib.import_module(f"src.{main_args.model}")
     )
 
-    module_args, unknow_args = continual_learning_algorithm_module.get_args(
+    module_args, unknown_args = continual_learning_algorithm_module.get_args(
         remaining_args
     )
 
     for args_name, args in {
         "main args": main_args,
         "model args": module_args,
-        "unknown args": dict(zip(unknow_args[::2], unknow_args[1::2])),
+        "unknown args": dict(zip(unknown_args[::2], unknown_args[1::2])),
     }.items():
 
         logger.success(f"{args_name}:")
@@ -344,13 +344,13 @@ def get_args() -> tuple[CLAlgoModule, Namespace, Namespace, list[str]]:
         for key, value in (vars(args) if args_name != "unknown args" else args).items():
             logger.info(f"\t{key}: {value}")
 
-    return main_args, module_args, unknow_args, continual_learning_algorithm_module
+    return main_args, module_args, unknown_args, continual_learning_algorithm_module
 
 
 def main():
     # get command line arguments
     continual_learning_algorithm_module: CLAlgoModule
-    main_args, module_args, unknow_args, continual_learning_algorithm_module = (
+    main_args, module_args, unknown_args, continual_learning_algorithm_module = (
         get_args()
     )
 
