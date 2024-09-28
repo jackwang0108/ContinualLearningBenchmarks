@@ -27,7 +27,7 @@ class iCaRL(nn.Module, ContinualLearningModel):
         self.feature_dim = self.feature_extractor.feature_dim
 
         # after learning the current task, the mean of exemplar sets need to be recalculated, so we need to save the current feature extractor
-        self.previous_feature_extractors: list[ResNet] = []
+        self.previous_feature_extractors: list[nn.Module] = []
 
         # Note: iCaRL uses weight vectors for representation learning, not classification
         # Ref: Page 3, Architecture, Paragraph 2, Line 11: "Note that even though one can interpret these outputs as probabilities, iCaRL uses the network only for representation learning, not for the actual classification step."
@@ -55,7 +55,7 @@ class iCaRL(nn.Module, ContinualLearningModel):
             in_features=self.feature_dim,
             out_features=num_cls + len(self.learned_classes),
             bias=False,
-        ).to(device=self.feature_extractor.conv1.weight.device)
+        ).to(device=next(self.feature_extractor.parameters()).device)
 
         # for the second task, copy the weights of last weight vectors
         if len(self.previous_weight_vectors) > 0:
@@ -95,31 +95,6 @@ class iCaRL(nn.Module, ContinualLearningModel):
         self.learned_classes.extend(task)
         self.learned_tasks.append(task)
 
-    @contextmanager
-    def use_previous_model(
-        self,
-        feature_extractor: Optional[ResNet] = None,
-        weight_vectors: Optional[nn.Linear] = None,
-    ):
-        current_feature_extractor = self.feature_extractor
-        current_weight_vectors = self.current_weight_vectors
-
-        try:
-            self.feature_extractor = (
-                feature_extractor
-                if feature_extractor is not None
-                else self.previous_feature_extractors
-            )
-            self.current_weight_vectors = (
-                weight_vectors
-                if weight_vectors is not None
-                else self.previous_weight_vectors[-1]
-            )
-            yield self
-        finally:
-            self.feature_extractor = current_feature_extractor
-            self.current_weight_vectors = current_weight_vectors
-
     def forward(self, image: torch.FloatTensor) -> torch.FloatTensor:
         """
         Args:
@@ -137,37 +112,6 @@ class iCaRL(nn.Module, ContinualLearningModel):
         logits = self.current_weight_vectors(features)
 
         return logits
-
-    @torch.no_grad()
-    def get_preds(self, image: torch.FloatTensor) -> torch.FloatTensor:
-        """
-        Args:
-            image (torch.FloatTensor): input image, shape [B, C, H, W]
-        Returns:
-            torch.FloatTensor: output predictions, shape [B]
-        """
-
-        features: torch.FloatTensor
-        # [B, 512]
-        features = self.feature_extractor(image)
-
-        # Note: iCaRL L2-normalizes the features
-        # ref: Page 2, Architecture, Paragraph 1, Line 5: "All feature vectors are L2-normalized..."
-        features = features / features.norm(p=2, dim=1, keepdim=True)
-
-        # [B, 1, 512]
-        features = features.unsqueeze(dim=1)
-
-        # [1, N, 512]
-        cls_means: torch.FloatTensor = torch.cat(
-            list(self.exemplar_means.values()), dim=0
-        ).unsqueeze(dim=0)
-
-        # [B, N, 512]
-        pred = features - cls_means
-        # [B, N]
-        pred = pred.norm(p=2, dim=2, keepdim=False)
-        return pred.argmin(dim=1)
 
 
 if __name__ == "__main__":
