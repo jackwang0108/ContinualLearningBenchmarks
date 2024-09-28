@@ -5,6 +5,7 @@ import importlib
 from itertools import chain
 from functools import partial
 from typing import cast, get_args
+from collections.abc import Callable
 from typing import Optional, Protocol, Literal
 
 # Third-Party Library
@@ -23,7 +24,7 @@ from .annotation import (
     Images,
     Labels,
     Task,
-    TaskDataGetter,
+    CollateFunc,
     ClassDataGetter,
 )
 
@@ -79,6 +80,11 @@ class CLDatasetModule(Protocol):
         Returns:
             tuple[Images, Labels]: the images and labels of give task
         """
+        pass
+
+    def collate_fn(
+        self, batched_data: list[tuple[torch.FloatTensor, np.ndarray, np.int64]]
+    ) -> tuple[torch.FloatTensor, torch.FloatTensor, torch.LongTensor]:
         pass
 
 
@@ -172,6 +178,13 @@ class CLDatasetGetter:
         self.test_datasets: list[Dataset] = []
         self.train_datasets: list[Dataset] = []
 
+    def get_collate_fn(self, allow_default: bool = False) -> CollateFunc:
+        collate_fn = getattr(self.dataset_module, "collate_fn", None)
+        if collate_fn is not None and allow_default:
+            collate_fn = default_collate_fn
+        assert collate_fn is None, f"no collate_fn provided for dataset {self.dataset}"
+        return collate_fn
+
     def __iter__(self):
         return self
 
@@ -216,6 +229,9 @@ class CLDatasetGetter:
             self.denorm_transform,
         )
 
+        test_dataset.collate_fn = self.get_collate_fn(allow_default=True)
+        train_dataset.collate_fn = self.get_collate_fn(allow_default=True)
+
         return self.current_task_id, self.current_task, train_dataset, test_dataset
 
 
@@ -246,9 +262,9 @@ if __name__ == "__main__":
             )
 
             draw_image(
-                torch.from_numpy(train_dataset.images[: 500 * task_num : 500]).permute(
-                    0, 3, 1, 2
-                ),
+                torch.from_numpy(
+                    train_dataset.images[: 500 * (100 // task_num) : 500]
+                ).permute(0, 3, 1, 2),
                 f"./test/{test_CLDatasetGetter.__name__}-{dataset=}-{task_num=}-{task_id=}.png",
             )
 
