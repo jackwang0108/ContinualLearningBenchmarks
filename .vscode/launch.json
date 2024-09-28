@@ -57,7 +57,6 @@
             "options": [
                 "finetune",
                 "iCaRL",
-                "new_icarl"
             ],
             "default": "finetune"
         },
