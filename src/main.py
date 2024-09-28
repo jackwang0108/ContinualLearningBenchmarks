@@ -12,7 +12,6 @@ import numpy as np
 # Torch Library
 import torch
 import torch.nn as nn
-import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
@@ -24,7 +23,6 @@ import utils.datasets
 from utils.datasets import CLDatasetGetter
 from utils.helper import get_logger, set_random_seed
 from utils.helper import plot_matrix, draw_image
-from utils.helper import get_probas, get_pred, to_khot
 from utils.helper import get_top1_acc, get_backward_transfer
 from utils.helper import (
     get_top1_acc,
@@ -204,10 +202,18 @@ def continual_learning(
 
         # get dataloader
         train_loader = DataLoader(
-            train_dataset, batch_size=main_args.batch_size, shuffle=True, num_workers=2
+            train_dataset,
+            batch_size=main_args.batch_size,
+            shuffle=True,
+            num_workers=2,
+            collate_fn=dataset_getter.get_collate_fn(),
         )
         test_loader = DataLoader(
-            test_dataset, batch_size=main_args.batch_size, shuffle=False, num_workers=2
+            test_dataset,
+            batch_size=main_args.batch_size,
+            shuffle=False,
+            num_workers=2,
+            collate_fn=dataset_getter.get_collate_fn(),
         )
 
         # learn the new task
