@@ -46,7 +46,7 @@ class CosineClassifier(nn.Module):
         return torch.cat([i for i in self.class_embeddings], dim=0)
 
     @staticmethod
-    def init_from_existing_classsifier(
+    def init_from_existing_classifier(
         other: "CosineClassifier",
         in_features: int,
         out_features: int,
@@ -108,7 +108,7 @@ class LUCIR(nn.Module, ContinualLearningModel):
             # copy the weight of last classifier
             previous_classifier = self.previous_classifiers[-1]
 
-            self.current_classifier = CosineClassifier.init_from_existing_classsifier(
+            self.current_classifier = CosineClassifier.init_from_existing_classifier(
                 previous_classifier, self.feature_dim, num_cls
             )
 
@@ -185,7 +185,7 @@ if __name__ == "__main__":
 
         so1, no1 = c1(image)
 
-        c2 = CosineClassifier.init_from_existing_classsifier(c1, 512, 20)
+        c2 = CosineClassifier.init_from_existing_classifier(c1, 512, 20)
         so2, no2 = c2(image)
 
         print(torch.isclose(so1, so2[:, :10]).all())
