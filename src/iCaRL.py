@@ -12,19 +12,18 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.optim.lr_scheduler
+from torch.optim import Optimizer
 from torch.utils.data import Dataset, DataLoader
 from torch.optim.lr_scheduler import LRScheduler
 from torch.utils.tensorboard import SummaryWriter
 
 # My Library
 from model.iCaRL import iCaRL
-from utils.annotation import Task
-from utils.helper import (
-    to_khot,
-    get_top1_acc,
-)
-from utils.annotation import Images, Labels
+from utils.helper import to_khot
 from utils.annotation import (
+    Task,
+    Images,
+    Labels,
     TaskLearner,
     PerformanceFunc,
 )
@@ -447,7 +446,7 @@ def get_task_learner(
 
         device = next(cl_model.parameters()).device
 
-        optimizer = getattr(optim, module_args.optim)(
+        optimizer: Optimizer = getattr(optim, module_args.optim)(
             cl_model.parameters(), lr=float(main_args.lr), weight_decay=1e-5
         )
 
