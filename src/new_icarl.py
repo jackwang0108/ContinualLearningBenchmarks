@@ -32,7 +32,9 @@ from utils.annotation import (
 
 device: torch.device = None
 total_exemplar_size: int = None
-exemplar_sets: dict[str, tuple[Images, Labels, torch.FloatTensor]] = None
+exemplar_sets: dict[
+    str, tuple[tuple[np.ndarray, torch.FloatTensor], Labels, torch.FloatTensor]
+] = None
 
 
 def get_model(backbone: nn.Module) -> iCaRL:
@@ -47,6 +49,13 @@ def get_args(argument_list: list[str]) -> tuple[Namespace, list[str]]:
         type=int,
         default=2000,
         help="size of buffer, i.e. examplar size",
+    )
+    parser.add_argument(
+        "--optim",
+        type=str,
+        default="SGD",
+        choices=["Adam", "SGD"],
+        help="which optimizer to use",
     )
     model_args, unknow_args = parser.parse_known_args(argument_list)
 
@@ -97,11 +106,14 @@ def prepare_new_task(
     exemplar_images: Images
     exemplar_labels: Labels
     for exemplar_images, exemplar_labels, _ in exemplar_sets.values():
-        current_task_images: Images = train_dataset.images
         current_task_labels: Labels = train_dataset.labels
+        current_task_images: Images = train_dataset.images
+
+        exemplar_original_images: torch.FloatTensor = exemplar_images[0]
+        exemplar_augmented_images: torch.FloatTensor = exemplar_images[1]
 
         train_dataset.images = np.concatenate(
-            (current_task_images, exemplar_images), axis=0
+            (current_task_images, exemplar_original_images), axis=0
         )
         train_dataset.labels = np.concatenate(
             (current_task_labels, exemplar_labels), axis=0
@@ -116,8 +128,6 @@ def finish_new_task(
     for iCaRL, after learned each task, we need to manage the exemplar set, i.e., buffer management
     """
     global device, exemplar_sets, total_exemplar_size
-
-    # TODO: dataset每次拿图像多返回第一个no_augmented_image, 不然来回denorm, 太傻比了
 
     logger = kwargs["logger"]
     task_id = kwargs["task_id"]
@@ -134,22 +144,20 @@ def finish_new_task(
     exemplar_size = total_exemplar_size // len(cl_model.learned_classes)
     for cls_name in exemplar_sets:
         # 0 is image, 1 is label, 2 is mean feature
-        reduced_image = exemplar_sets[cls_name][0][:exemplar_size]
+        reduced_image = exemplar_sets[cls_name][0]
         reduced_label = exemplar_sets[cls_name][1][:exemplar_size]
 
+        # 0 is original image, 1 is augmented image
+        reduced_original_image = reduced_image[0][:exemplar_size]
+        reduced_augmented_image = reduced_image[1][:exemplar_size]
+
         exemplar_sets[cls_name] = (
-            reduced_image,
+            (reduced_original_image, reduced_augmented_image),
             reduced_label,
             # note: after reducing the exemplar set, the cls mean need to be recalculated
             calculate_features(
                 cl_model,
-                torch.stack(
-                    [
-                        test_dataset.augment(reduced_image[i])
-                        for i in range(len(reduced_image))
-                    ],
-                    dim=0,
-                ).to(device=device),
+                reduced_augmented_image.to(device=device),
             ).mean(dim=0, keepdim=True),
         )
 
@@ -161,28 +169,36 @@ def finish_new_task(
     for cls_name in current_task:
         cls_id = cls_id_mapper[cls_name]
 
-        # get cls images
+        # get images and labels of this class
         cls_data_index = train_labels == cls_id
-        cls_images: torch.FloatTensor = train_images[cls_data_index]
-        cls_images = torch.stack(
+
+        labels: np.ndarray = train_labels[cls_data_index]
+        original_image: np.ndarray = train_images[cls_data_index]
+        augmented_image: torch.FloatTensor = torch.stack(
             # normalize the data
-            [test_dataset.augment(cls_images[i]) for i in range(cls_images.shape[0])],
+            [
+                test_dataset.augment(original_image[i])
+                for i in range(original_image.shape[0])
+            ],
             dim=0,
         ).to(device=device)
-        cls_labels = torch.from_numpy(train_labels[cls_data_index]).to(device=device)
 
         # get exemplar images and labels
-        exemplar_image, exemplar_label = build_exemplar_set(
-            cl_model, cls_images, cls_labels, exemplar_size
+        (
+            exemplar_label,
+            exemplar_original_image,
+            exemplar_augmented_image,
+        ) = build_exemplar_set(
+            cl_model, labels, original_image, augmented_image, exemplar_size
         )
 
         exemplar_sets[cls_name] = (
             # save the original images, so denorm the image
-            test_dataset.denorm_transforms(exemplar_image.cpu())
-            .permute(0, 2, 3, 1)
-            .numpy(),
-            exemplar_label.cpu().numpy(),
-            calculate_features(cl_model, exemplar_image).mean(dim=0, keepdim=True),
+            (exemplar_original_image, exemplar_augmented_image),
+            exemplar_label,
+            calculate_features(cl_model, exemplar_augmented_image).mean(
+                dim=0, keepdim=True
+            ),
         )
 
         logger.info(f"\t\t{cls_id=}, {cls_name=}")
@@ -190,40 +206,39 @@ def finish_new_task(
 
 @torch.no_grad()
 def calculate_features(cl_model: iCaRL, images: torch.FloatTensor) -> torch.FloatTensor:
-    cls_features = []
 
-    image: torch.FloatTensor
+    images: torch.FloatTensor
     features: torch.FloatTensor
-    for image in images:
-        features = cl_model.feature_extractor(image.unsqueeze(0))
-        features = features / features.norm(p=2, dim=1, keepdim=True)
-        cls_features.append(features)
+    features = cl_model.feature_extractor(images)
+    features = features / features.norm(p=2, dim=1, keepdim=True)
 
-    return torch.cat(cls_features, dim=0)
+    return features
 
 
 @torch.no_grad()
 def build_exemplar_set(
     cl_model: iCaRL,
-    cls_images: torch.FloatTensor,
-    cls_labels: torch.LongTensor,
+    labels: torch.LongTensor,
+    original_image: np.ndarray,
+    augmented_image: torch.FloatTensor,
     exemplar_size: int,
 ) -> tuple[Images, Labels]:
 
     # get features
     # [N, 512]
-    cls_features = calculate_features(cl_model, cls_images)
+    features = calculate_features(cl_model, augmented_image)
 
-    # get class mean
+    # get mean of features
     # [1, 512]
-    cls_mean = cls_features.mean(dim=0, keepdim=True)
+    mean = features.mean(dim=0, keepdim=True)
 
     # build exemplar set
-    exemplar_images: list[Images] = []
-    exemplar_labels: list[int] = []
+    exemplar_labels: list[np.ndarray] = []
     exemplar_features: list[torch.FloatTensor] = []
+    exemplar_original_images: list[np.ndarray] = []
+    exemplar_augmented_images: list[torch.FloatTensor] = []
 
-    available_mask = torch.ones(cls_features.size(0), dtype=bool)
+    available_mask = torch.ones(features.size(0), dtype=bool)
     for k in range(1, exemplar_size + 1):
         # get k-th exemplar
 
@@ -231,33 +246,39 @@ def build_exemplar_set(
         current_sum = (
             torch.cat(exemplar_features, dim=0).sum(dim=0, keepdim=True)
             if exemplar_features
-            else torch.zeros_like(cls_mean)
+            else torch.zeros_like(mean)
         )
         # [N-k, 512]
-        summation = cls_mean - 1 / k * (cls_features + current_sum)
+        summation = mean - 1 / k * (features + current_sum)
         # [N-k]
-        norm = summation.norm(p=2, dim=1, keepdim=False)
-        kth_exemplar_idx = norm.argmin(dim=0).cpu().item()
+        euclidean_distance = summation.norm(p=2, dim=1, keepdim=False)
+        kth_exemplar_idx = euclidean_distance.argmin(dim=0).cpu().item()
 
         # add k-th exemplar into the exemplar set
-        exemplar_images.append(cls_images[kth_exemplar_idx])
-        exemplar_labels.append(cls_labels[kth_exemplar_idx])
-        exemplar_features.append(cls_features[kth_exemplar_idx].unsqueeze(dim=0))
+        exemplar_labels.append(labels[kth_exemplar_idx])
+        exemplar_features.append(features[kth_exemplar_idx].unsqueeze(dim=0))
+        exemplar_original_images.append(original_image[kth_exemplar_idx])
+        exemplar_augmented_images.append(augmented_image[kth_exemplar_idx])
 
         # remove k-th exemplar from cls_images/cls_labels/cls_features
         available_mask[kth_exemplar_idx] = False
-        cls_features = cls_features[available_mask]
-        cls_images = cls_images[available_mask]
-        cls_labels = cls_labels[available_mask]
+        labels = labels[available_mask]
+        features = features[available_mask]
+        original_image = original_image[available_mask]
+        augmented_image = augmented_image[available_mask]
 
         # reduce the available_mask, for 1 image has been erased
         available_mask = available_mask[available_mask]
 
     # return exemplar set
-    return torch.stack(exemplar_images, dim=0), torch.stack(exemplar_labels)
+    return (
+        np.array(exemplar_labels, dtype=np.int64),
+        np.stack(exemplar_original_images, axis=0),
+        torch.stack(exemplar_augmented_images, dim=0),
+    )
 
 
-def train_epoch(
+def my_train_epoch(
     cl_model: iCaRL,
     train_loader: DataLoader,
     optimizer: optim.Optimizer,
@@ -271,15 +292,16 @@ def train_epoch(
 
     total_num_classes = len(cl_model.learned_classes) + len(cl_model.current_task)
 
-    loss: torch.FloatTensor
-    image: torch.FloatTensor
+    loss: torch.LongTensor
+    original_image: torch.FloatTensor
+    augmented_image: torch.FloatTensor
     label: torch.LongTensor
-    for image, label in train_loader:
-        image = image.to(device)
+    for augmented_image, original_image, label in train_loader:
+        augmented_image = augmented_image.to(device)
         label = to_khot(label, total_num_classes).to(device)
 
         # for new classes, use cross entropy loss
-        logits = cl_model(image)
+        logits = cl_model(augmented_image)
         classification_loss = classify_loss_func(logits, label)
 
         # for learned classes, use distillation loss, be cautious for the first task, there are no learned classes
@@ -290,11 +312,11 @@ def train_epoch(
             with torch.no_grad():
                 with cl_model.use_previous_model():
                     # [B, Number of Learned Classes]
-                    teacher_logits = cl_model(image)
+                    teacher_logits = cl_model(augmented_image)
 
             # get the logits of current model, i.e., student logits
             # [B, Number of Learned Classes + Number of Current Classes]
-            student_logits = cl_model(image)
+            student_logits = cl_model(augmented_image)
 
             # Note: iCaRL gives the logits as below, this mainly change the output logits to probability distribution
             # ref: Page 2, Architecture, Paragraph 2, Line 8: "The resulting network outputs are..."
@@ -320,56 +342,60 @@ def train_epoch(
     return total_loss / len(train_loader)
 
 
-def paper_train_epoch(
+def train_epoch(
     cl_model: iCaRL,
     train_loader: DataLoader,
     optimizer: optim.Optimizer,
 ) -> float:
     """
-    This is the training code of original paper, which uses BCE loss for both new classes and learned classes.
-
-    This version of training actually worse than the training code above, for CrossEntropy loss excels BCE loss for new classes learning.
-
-    After the training, new classes exemplar is generated using the model and is used to classify. So, since the CrossEntropy loss gets a
-    better feature extractor, the above training code gets better results on all classes.
+    This is the training code of original paper, which uses BCE loss
     """
     total_loss = 0
 
     sigmoid = nn.Sigmoid()
     loss_func = nn.BCEWithLogitsLoss(reduction="mean")
 
-    total_num_classes = len(cl_model.learned_classes) + len(cl_model.current_task)
+    num_new_classes = len(cl_model.current_task)
+    num_learned_classes = len(cl_model.learned_classes)
+    total_num_classes = num_new_classes + num_learned_classes
 
     loss: torch.FloatTensor
-    image: torch.FloatTensor
-    label: torch.LongTensor
-    for image, label in train_loader:
-        image = image.to(device)
-        label = to_khot(label, total_num_classes).to(device)
+    target: torch.LongTensor
+    original_image: torch.FloatTensor
+    augmented_image: torch.FloatTensor
+
+    for augmented_image, original_image, label in train_loader:
+        augmented_image = augmented_image.to(device)
+        target = to_khot(label, total_num_classes).to(device)
 
         # get the logits of current model
-        logits = cl_model(image)
+        logits = cl_model(augmented_image)
 
         # get logits of previous model for learned classes, be cautious for the first task, there are no learned classes
         if len(cl_model.learned_classes) > 0:
 
             # get the logits of last model, i.e., teacher logits
             with torch.no_grad():
-                with cl_model.use_previous_model():
-                    # [B, Number of Learned Classes]
-                    teacher_logits = cl_model(image)
+                # [B, Number of Learned Classes]
+                teacher_logits = cl_model.previous_nets[-1](augmented_image)
 
-            # Note: iCaRL gives the logits as below, this mainly change the output logits to probability distribution
-            # ref: Page 2, Architecture, Paragraph 2, Line 8: "The resulting network outputs are..."
-            teacher_logits = sigmoid(teacher_logits)
+                # Note: iCaRL gives the logits as below, this mainly change the output logits to probability distribution
+                # ref: Page 2, Architecture, Paragraph 2, Line 8: "The resulting network outputs are..."
+                teacher_logits = sigmoid(teacher_logits)
 
             # get knowledge distillation loss
             # note, the output shape of teach logits and student logits are not the same, so alignment is necessary
             # The original paper just use the learned class logits of student logits to do distillation
             # ref: Page 3, Algorithm 3, \sum_{y=1}^{s-1}..., here y=1~s-1 means distill on learned class logits
-            label[:, : len(cl_model.learned_classes)] = teacher_logits
+            target = torch.cat(
+                (
+                    teacher_logits[:, :num_learned_classes],
+                    target[:, num_learned_classes:total_num_classes],
+                ),
+                dim=1,
+            )
 
-        loss = loss_func(logits, label)
+        loss = loss_func(logits, target)
 
         optimizer.zero_grad()
         loss.backward()
@@ -389,11 +415,11 @@ def test_epoch(
 ) -> tuple[torch.FloatTensor, torch.FloatTensor]:
     performance = []
 
-    for image, label in test_loader:
-        image, label = image.to(device), label.to(device)
+    for augmened_image, original_image, label in test_loader:
+        augmened_image, label = augmened_image.to(device), label.to(device)
 
         # iCaRL use Nearest-Mean-of-Exemplar to classify, so use that here
-        preds = get_preds(cl_model, image)
+        preds = get_preds(cl_model, augmened_image)
         performance.append(perf_func(preds, label, num_total_class))
 
     return sum(performance) / len(performance)
@@ -407,7 +433,7 @@ def get_task_learner(
 
     def task_learner(**kwargs: dict[str, Any]) -> nn.Module:
         global device
-        nonlocal main_args, module_args
+        nonlocal main_args, module_args, num_task_learned
 
         task_id: int = kwargs["task_id"]
         current_task: Task = kwargs["current_task"]
@@ -421,12 +447,9 @@ def get_task_learner(
 
         device = next(cl_model.parameters()).device
 
-        optimizer = optim.SGD(
-            cl_model.parameters(), lr=(main_args.lr), weight_decay=1e-5
+        optimizer = getattr(optim, module_args.optim)(
+            cl_model.parameters(), lr=float(main_args.lr), weight_decay=1e-5
         )
-        # optimizer = optim.Adam(
-        #     cl_model.parameters(), lr=float(main_args.lr), weight_decay=1e-5
-        # )
 
         num_epoch = main_args.epochs
 
@@ -472,7 +495,6 @@ def get_task_learner(
                 )
 
         # log hparams
-        nonlocal num_task_learned
         if num_task_learned == 0:
             hparams_dict["num_epoch"] = num_epoch
             hparams_dict["optim"] = optimizer.__class__.__name__
