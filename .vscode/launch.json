@@ -57,6 +57,7 @@
             "options": [
                 "finetune",
                 "iCaRL",
+                "LUCIR"
             ],
             "default": "finetune"
         },
