@@ -55,5 +55,5 @@ def get_backbone(backbone: AvaliableBackbone, pretrained: bool=False) -> nn.Modu
         
         # when input batched image is [1, C, H, W], resnet will be wrong for Resnet._forward_impl.layer4(x)
         # this is because the maxpool layer. So, remove the maxpool
-        feature_extractor.maxpool = nn.Identity()
+        # feature_extractor.maxpool = nn.Identity()
     return feature_extractor
