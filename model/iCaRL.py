@@ -36,9 +36,6 @@ class iCaRL(nn.Module, ContinualLearningModel):
 
         self.previous_nets: list[nn.Sequential] = []
 
-        # Note: iCaRL uses Nearest-Mean-of-Exemplars to classify a given example
-        self.exemplar_means: dict[str, torch.FloatTensor] = {}
-
         self.current_task: Task = None
         self.learned_classes: list[str] = []
         self.learned_tasks: list[Task] = []
