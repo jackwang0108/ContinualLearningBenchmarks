@@ -97,6 +97,7 @@ def _reduction(
 def get_backward_transfer(
     cl_matrix: np.ndarray, reduction: Literal["mean", "none"] = "mean"
 ) -> float | np.ndarray:
+    # reference: Beyond Not-Forgetting: Continual Learning with Backward Knowledge Transfer
     cl_matrix = cl_matrix.copy()
     R_ii = np.diag(cl_matrix)[:-1]
     R_iN = cl_matrix[:-1, -1]
@@ -108,6 +109,7 @@ def get_forward_transfer(
     cl_matrix: np.ndarray,
     reduction: Literal["mean", "none"] = "mean",
 ) -> float | np.ndarray:
+    # reference: Enhancing Visual Continual Learning with Language-Guided Supervision
     # TODO: finish this
     raise NotImplementedError
 
@@ -115,6 +117,7 @@ def get_forward_transfer(
 def get_last_setp_accuracy(
     cl_matrix: np.ndarray, reduction: Literal["mean", "none"] = "mean"
 ) -> float | np.ndarray:
+    # reference: Enhancing Visual Continual Learning with Language-Guided Supervision
     cl_matrix = cl_matrix.copy()
     R_iN = cl_matrix[:, -1]
     return _reduction(R_iN, reduction)
@@ -123,6 +126,7 @@ def get_last_setp_accuracy(
 def get_average_incremental_accuracy(
     cl_matrix: np.ndarray, reduction: Literal["mean", "none"] = "mean"
 ) -> float | np.ndarray:
+    # reference: Enhancing Visual Continual Learning with Language-Guided Supervision
     cl_matrix = cl_matrix.copy()
     last_step_accuracies = [
         get_last_setp_accuracy(cl_matrix[:i, :i], "mean")
@@ -135,6 +139,7 @@ def get_average_incremental_accuracy(
 def get_forgetting_rate(
     cl_matrix: np.ndarray, reduction: Literal["mean", "none"] = "mean"
 ) -> float | np.ndarray:
+    # reference: Enhancing Visual Continual Learning with Language-Guided Supervision
     cl_matrix = cl_matrix.copy()
     cl_matrix = cl_matrix[:-1, :]
     R_iN = cl_matrix[:, -1]
