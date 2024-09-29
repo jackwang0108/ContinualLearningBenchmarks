@@ -1,4 +1,5 @@
 # Standard Library
+import copy
 import argparse
 import datetime
 import importlib
@@ -44,6 +45,7 @@ from model.base import ContinualLearningModel
 
 
 logger = None
+log_dir: Path = None
 device: torch.device = None
 writer: SummaryWriter = None
 
@@ -94,7 +96,7 @@ def get_continual_learning_ability_tester(
     cl_matrix = np.zeros((task_num, task_num))
 
     metrics_getter = CLMetrics(
-        {
+        metrics := {
             "Backward Transfer": get_backward_transfer,
             "Forgetting Rate": get_forgetting_rate,
             "Last Step Accuracy": get_last_setp_accuracy,
@@ -127,6 +129,7 @@ def get_continual_learning_ability_tester(
             )
 
         # calculate continual learning ability metrics and log to summarywriter
+        current_metrics = {mn: torch.nan for mn in metrics}
         if task_id >= 1:
             current_cl_matrix = cl_matrix[: task_id + 1, : task_id + 1]
 
@@ -148,7 +151,7 @@ def get_continual_learning_ability_tester(
             global_step=task_id,
         )
 
-        return cl_matrix, current_metrics if task_id >= 1 else {}
+        return cl_matrix, current_metrics
 
     return continual_learning_ability_tester
 
@@ -159,6 +162,7 @@ def continual_learning(
     cl_model: ContinualLearningModel,
     cl_algo_module: CLAlgoModule,
 ):
+    # sourcery skip: low-code-quality
 
     dataset_getter = CLDatasetGetter(
         dataset=main_args.dataset,
@@ -183,7 +187,15 @@ def continual_learning(
     train_dataset: Dataset
     learned_tasks: list[Task] = []
     learned_task_test_loaders: list[DataLoader] = []
-    hparams_dict: dict[str, str | int | float] = {}
+
+    # log to tensorboard
+    md, nd = vars(main_args), vars(module_args)
+    extra_hparam_dict = {}
+    hparams_dict: dict[str, str | int | float] = {
+        key: value
+        for key, value in (md | nd).items()
+        if key not in ["name", "message", "log_times", "gpu_id"]
+    }
 
     # prepare continual learning
     cl_algo_module.prepare_continual_learning(module_args)
@@ -235,7 +247,7 @@ def continual_learning(
                 test_loader=test_loader,
                 writer=writer,
                 logger=logger,
-                hparams_dict=hparams_dict,
+                hparams_dict=extra_hparam_dict,
                 training_watcher=training_watcher,
             )
 
@@ -260,21 +272,29 @@ def continual_learning(
             task_id, current_task, learned_tasks, learned_task_test_loaders, cl_model
         )
 
-        if metrics is not None:
-            logger.debug(
-                "\t"
-                + ", ".join([f"{key}={value:.2f}" for key, value in metrics.items()])
-            )
+        # log continual learning performance
+        logger.debug(
+            "\t" + ", ".join([f"{key}={value:.2f}" for key, value in metrics.items()])
+        )
+
+        global log_dir
+        hparams_dict |= extra_hparam_dict
+        writer.add_hparams(
+            hparams_dict,
+            metrics | training_watcher,
+            run_name=str(log_dir),
+            global_step=task_id,
+        )
 
     # log hyper parameter
-    logger.info("Hyper Parameters")
-    for key, value in hparams_dict.items():
-        logger.info(f"\t{key}: {value}")
+    logger.success("Hyper Parameters")
+    for key, value in (extra_hparam_dict | nd).items():
+        logger.debug(f"\t{key}: {value}")
 
     # log continual learning metrics
-    logger.debug("Continual Learning Performance:")
+    logger.success("Continual Learning Performance:")
     for key, value in metrics.items():
-        logger.info(f"\t{key}: {value}")
+        logger.debug(f"\t{key}: {value:.4f}")
 
     logger.info(f"Task learned: {dataset_getter.tasks}")
     logger.success("Finished Training")
@@ -320,9 +340,10 @@ def get_args() -> tuple[CLAlgoModule, Namespace, Namespace, list[str]]:
         "" if main_args.message == "" else ". "
     ) + f"Running on {current_time}"
 
-    global logger, writer
-    writer = SummaryWriter(log_dir := f"log/{main_args.model}/{main_args.name}")
-    logger = get_logger(Path(log_dir) / "running.log")
+    global log_dir, logger, writer
+    log_dir = Path(f"log/{main_args.model}/{main_args.name}")
+    writer = SummaryWriter(str(log_dir))
+    logger = get_logger(log_dir / "running.log")
 
     # load continual learning module
     continual_learning_algorithm_module = cast(
