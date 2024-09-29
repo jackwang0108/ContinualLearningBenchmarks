@@ -58,7 +58,7 @@ class CLAlgoModule(Protocol):
     def get_args(self, argument_list: list[str]) -> tuple[Namespace, list[str]]:
         pass
 
-    def get_model(self, backbone: nn.Module) -> nn.Module:
+    def get_model(self, backbone: nn.Module, module_args: Namespace) -> nn.Module:
         pass
 
     def get_preds(self, cl_model: nn.Module) -> torch.FloatTensor:
@@ -387,7 +387,7 @@ def main():
     # get the continual learning model
     backbone = model.get_backbone(main_args.backbone)
     continual_learning_model: ContinualLearningModel = (
-        continual_learning_algorithm_module.get_model(backbone=backbone).to(device)
+        continual_learning_algorithm_module.get_model(backbone, module_args).to(device)
     )
 
     # continual learning

@@ -43,7 +43,7 @@ total_buffer_size: int = None
 memory_buffers: dict[str, tuple[tuple[np.ndarray, torch.FloatTensor], Labels]] = None
 
 
-def get_model(backbone: nn.Module) -> LUCIR:
+def get_model(backbone: nn.Module, module_args: Namespace) -> LUCIR:
     return LUCIR(backbone)
 
 

@@ -36,7 +36,7 @@ exemplar_sets: dict[
 ] = None
 
 
-def get_model(backbone: nn.Module) -> iCaRL:
+def get_model(backbone: nn.Module, module_args: Namespace) -> iCaRL:
     return iCaRL(backbone)
 
 

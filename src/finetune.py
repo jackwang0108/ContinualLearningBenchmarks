@@ -30,7 +30,7 @@ from utils.annotation import (
 device: torch.device = None
 
 
-def get_model(backbone: nn.Module) -> Finetune:
+def get_model(backbone: nn.Module, module_args: Namespace) -> Finetune:
     return Finetune(backbone)
 
 
