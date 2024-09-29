@@ -7,4 +7,4 @@ Author: Shihong Wang
 Date: 2024/9/25
 """
 
-available_model = ["finetune", "iCaRL", "LUCIR"]
+available_model = ["finetune", "iCaRL", "LUCIR", "LingoCL"]

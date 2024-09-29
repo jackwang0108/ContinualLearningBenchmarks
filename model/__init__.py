@@ -11,10 +11,9 @@ import torchvision.models as models
 from .iCaRL import iCaRL
 from .LUCIR import LUCIR
 from .finetune import Finetune
-from .LingoCL.LingoCL import LingoCL
-from .LingoCL.iCaRL_LingoCL import iCaRL_LingoCL
+from .LingoCL import LingoCL
 
-Model = Finetune | iCaRL | LUCIR | LingoCL | iCaRL_LingoCL
+Model = Finetune | iCaRL | LUCIR | LingoCL
 
 __all__ = [
     # Typing
