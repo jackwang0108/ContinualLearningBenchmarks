@@ -44,7 +44,7 @@ memory_buffers: dict[str, tuple[tuple[np.ndarray, torch.FloatTensor], Labels]] =
 
 
 def get_model(backbone: nn.Module, module_args: Namespace) -> LingoCL:
-    return LingoCL(backbone)
+    return LingoCL(backbone, module_args.template)
 
 
 def get_args(argument_list: list[str]) -> tuple[Namespace, list[str]]:
@@ -86,6 +86,12 @@ def get_args(argument_list: list[str]) -> tuple[Namespace, list[str]]:
         default="SGD",
         choices=["Adam", "SGD"],
         help="which optimizer to use",
+    )
+    parser.add_argument(
+        "--template",
+        type=str,
+        default="[CLS]",
+        help="template use for generate the text embeddings, [CLS] for replacement",
     )
     model_args, unknown_args = parser.parse_known_args(argument_list)
 

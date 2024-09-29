@@ -70,8 +70,10 @@ class LingoCosineClassifier(nn.Module):
 
 class LingoCL(nn.Module, ContinualLearningModel):
 
-    def __init__(self, backbone: nn.Module) -> None:
+    def __init__(self, backbone: nn.Module, template: str) -> None:
         super().__init__()
+
+        self.template = template
 
         self.feature_extractor = backbone
 
@@ -98,7 +100,7 @@ class LingoCL(nn.Module, ContinualLearningModel):
         self.current_task = task
 
         # use clip to generate cosine similarity classifier weights
-        text = clip.tokenize([f"{i}" for i in task]).to(
+        text = clip.tokenize([self.template.replace("[CLS]", i) for i in task]).to(
             next(self.feature_extractor.parameters()).device
         )
 
