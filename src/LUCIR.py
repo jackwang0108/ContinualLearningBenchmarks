@@ -44,7 +44,7 @@ memory_buffers: dict[str, tuple[tuple[np.ndarray, torch.FloatTensor], Labels]] =
 
 
 def get_model(backbone: nn.Module, module_args: Namespace) -> LUCIR:
-    return LUCIR(backbone)
+    return LUCIR(backbone, module_args.allow_training)
 
 
 def get_args(argument_list: list[str]) -> tuple[Namespace, list[str]]:
@@ -86,6 +86,12 @@ def get_args(argument_list: list[str]) -> tuple[Namespace, list[str]]:
         default="SGD",
         choices=["Adam", "SGD"],
         help="which optimizer to use",
+    )
+    parser.add_argument(
+        "--allow_training",
+        type=bool,
+        default=True,
+        help="if allow training old class embeddings in new task",
     )
     model_args, unknown_args = parser.parse_known_args(argument_list)
 

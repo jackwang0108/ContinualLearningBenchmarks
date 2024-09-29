@@ -49,7 +49,7 @@ class CosineClassifier(nn.Module):
         other: "CosineClassifier",
         in_features: int,
         out_features: int,
-        allow_training: bool = True,
+        allow_training: bool = False,
     ) -> "CosineClassifier":
 
         this = CosineClassifier(in_features, out_features)
@@ -60,10 +60,9 @@ class CosineClassifier(nn.Module):
             nn.Parameter(torch.randn(out_features, in_features))
         )
 
-        if allow_training:
-            this.eta.requires_grad = True
-            for param in this.class_embeddings.parameters():
-                param.requires_grad = True
+        this.eta.requires_grad = allow_training
+        for param in this.class_embeddings.parameters():
+            param.requires_grad = allow_training
 
         this.train()
 
@@ -72,9 +71,10 @@ class CosineClassifier(nn.Module):
 
 class LUCIR(nn.Module, ContinualLearningModel):
 
-    def __init__(self, backbone: nn.Module) -> None:
+    def __init__(self, backbone: nn.Module, allow_training: bool) -> None:
         super().__init__()
 
+        self.allow_training = allow_training
         self.feature_extractor = backbone
 
         # set in __init__.py:get_backbone()
@@ -108,7 +108,10 @@ class LUCIR(nn.Module, ContinualLearningModel):
             previous_classifier = self.previous_classifiers[-1]
 
             self.current_classifier = CosineClassifier.init_from_existing_classifier(
-                previous_classifier, self.feature_dim, num_cls, allow_training=True
+                previous_classifier,
+                self.feature_dim,
+                num_cls,
+                allow_training=self.allow_training,
             )
 
         self.current_classifier = self.current_classifier.to(
@@ -119,6 +122,8 @@ class LUCIR(nn.Module, ContinualLearningModel):
         yield self
 
         # after the task, save the feature extractor and classifier
+        self.previous_classifiers.append(copy.deepcopy(self.current_classifier))
+        self.previous_feature_extractors.append(copy.deepcopy(self.feature_extractor))
 
         # freeze the current classifier and switch to evaluation mode
         self.previous_classifiers[-1].eval()
@@ -136,9 +141,6 @@ class LUCIR(nn.Module, ContinualLearningModel):
                 self.previous_classifiers[-1],
             )
         )
-
-        self.previous_classifiers.append(copy.deepcopy(self.current_classifier))
-        self.previous_feature_extractors.append(copy.deepcopy(self.feature_extractor))
 
         # expand the learned classes
         self.learned_classes.extend(task)
