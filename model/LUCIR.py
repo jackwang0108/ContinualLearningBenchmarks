@@ -30,9 +30,7 @@ class CosineClassifier(nn.Module):
             [nn.Parameter(torch.randn(out_features, in_features))]
         )
 
-    def forward(self, features: torch.FloatTensor) -> torch.FloatTensor:
-
-        normalized_features = F.normalize(features, p=2, dim=-1)
+    def forward(self, normalized_features: torch.FloatTensor) -> torch.FloatTensor:
 
         class_embedding = self.get_class_embedding()
         normalized_class_embeddings = F.normalize(class_embedding, p=2, dim=-1)
@@ -43,6 +41,7 @@ class CosineClassifier(nn.Module):
         return logits, scaled_output
 
     def get_class_embedding(self) -> nn.Parameter:
+        # sourcery skip: identity-comprehension
         return torch.cat([i for i in self.class_embeddings], dim=0)
 
     @staticmethod
