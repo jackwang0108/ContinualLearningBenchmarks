@@ -37,7 +37,11 @@
                 "resnet18",
                 "--epochs",
                 "${input:epoch}",
-                "--fixed_tasks"
+                "--fixed_tasks",
+                "--total_buffer_size",
+                "2000",
+                "--name",
+                "debug-${input:clalgo}"
             ],
             "console": "integratedTerminal"
         },
@@ -57,7 +61,8 @@
             "options": [
                 "finetune",
                 "iCaRL",
-                "LUCIR"
+                "LUCIR",
+                "LingoCL"
             ],
             "default": "finetune"
         },
