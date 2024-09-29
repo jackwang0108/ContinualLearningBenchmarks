@@ -31,32 +31,35 @@ class iCaRL_LingoCL(iCaRL):
 
         # create new weight vectors
         self.current_weight_vectors = nn.Linear(
-            in_features=self.feature_dim, out_features=num_cls + len(self.learned_classes), bias=False).to(device=self.feature_extractor.conv1.weight.device)
+            in_features=self.feature_dim,
+            out_features=num_cls + len(self.learned_classes),
+            bias=False,
+        ).to(device=self.feature_extractor.conv1.weight.device)
 
         # for the second task, copy the weights of last weight vectors
-        if len(self.weight_vectors) > 0:
+        if len(self.previous_weight_vectors) > 0:
 
             # copy the weight of previous weight vector
-            previous_weight_vector = self.weight_vectors[-1]
+            previous_weight_vector = self.previous_weight_vectors[-1]
 
-            self.current_weight_vectors.weight.data[:len(
-                self.learned_classes), :] = previous_weight_vector.weight.data[:, :]
+            self.current_weight_vectors.weight.data[: len(self.learned_classes), :] = (
+                previous_weight_vector.weight.data[:, :]
+            )
 
         # use clip to generate weights for new classes
         text = clip.tokenize([f"a {i}" for i in task]).to(
-            self.feature_extractor.conv1.weight.device)
+            self.feature_extractor.conv1.weight.device
+        )
 
         text_features: torch.FloatTensor
         text_features = self.clip.encode_text(text)
-        text_features = text_features / \
-            text_features.norm(dim=1, keepdim=True)
+        text_features = text_features / text_features.norm(dim=1, keepdim=True)
 
         # get weights for new classes
         # Ref: Page 3, Section 3.2 Our Proposed Language-Guided Supervision, (ii)
         weights = text_features
 
-        self.current_weight_vectors.weight.data[len(
-            self.learned_classes):] = weights
+        self.current_weight_vectors.weight.data[len(self.learned_classes) :] = weights
 
         # freeze the weight vector
         for param in self.current_weight_vectors.parameters():
@@ -71,17 +74,16 @@ class iCaRL_LingoCL(iCaRL):
         self.current_weight_vectors.eval()
 
         # save the current weight vectors
-        self.weight_vectors.append(self.current_weight_vectors)
+        self.previous_weight_vectors.append(self.current_weight_vectors)
 
         # copy the last feature extractor
-        self.previous_feature_extractor = copy.deepcopy(
-            self.feature_extractor)
+        self.previous_feature_extractors = copy.deepcopy(self.feature_extractor)
 
         # freeze previous feature extractor and switch to evaluation mode
-        for param in self.previous_feature_extractor.parameters():
+        for param in self.previous_feature_extractors.parameters():
             param.requires_grad = False
 
-        self.previous_feature_extractor.eval()
+        self.previous_feature_extractors.eval()
 
         # expand the learned classes
         self.learned_classes.extend(task)
