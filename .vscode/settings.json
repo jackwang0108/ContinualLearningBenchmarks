@@ -3,6 +3,7 @@
         "annot",
         "avgpool",
         "cbar",
+        "denorm",
         "fontsize",
         "khot",
         "LUCIR",
