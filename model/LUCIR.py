@@ -108,24 +108,7 @@ class LUCIR(nn.Module, ContinualLearningModel):
             previous_classifier = self.previous_classifiers[-1]
 
             self.current_classifier = CosineClassifier.init_from_existing_classifier(
-                previous_classifier, self.feature_dim, num_cls
-            )
-
-            # freeze the current classifier and switch to evaluation mode
-            self.previous_classifiers[-1].eval()
-            for param in self.previous_feature_extractors[-1].parameters():
-                param.requires_grad = False
-
-            # freeze previous feature extractor and switch to evaluation mode
-            self.previous_feature_extractors[-1].eval()
-            for param in self.previous_feature_extractors[-1].parameters():
-                param.requires_grad = False
-
-            self.previous_nets.append(
-                nn.Sequential(
-                    self.previous_feature_extractors[-1],
-                    self.previous_classifiers[-1],
-                )
+                previous_classifier, self.feature_dim, num_cls, allow_training=True
             )
 
         self.current_classifier = self.current_classifier.to(
@@ -136,6 +119,24 @@ class LUCIR(nn.Module, ContinualLearningModel):
         yield self
 
         # after the task, save the feature extractor and classifier
+
+        # freeze the current classifier and switch to evaluation mode
+        self.previous_classifiers[-1].eval()
+        for param in self.previous_feature_extractors[-1].parameters():
+            param.requires_grad = False
+
+        # freeze previous feature extractor and switch to evaluation mode
+        self.previous_feature_extractors[-1].eval()
+        for param in self.previous_feature_extractors[-1].parameters():
+            param.requires_grad = False
+
+        self.previous_nets.append(
+            nn.Sequential(
+                self.previous_feature_extractors[-1],
+                self.previous_classifiers[-1],
+            )
+        )
+
         self.previous_classifiers.append(copy.deepcopy(self.current_classifier))
         self.previous_feature_extractors.append(copy.deepcopy(self.feature_extractor))
 
