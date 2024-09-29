@@ -519,17 +519,14 @@ def get_task_learner(
                     global_step=epoch + task_id * num_epoch,
                 )
 
-        # log hparams
-        if num_task_learned == 0:
-            hparams_dict["num_epoch"] = num_epoch
-            hparams_dict["optim"] = optimizer.__class__.__name__
-            hparams_dict["lr"] = optimizer.defaults["lr"]
-            if (m := optimizer.defaults.get("momentum", None)) is not None:
-                hparams_dict["momentum"] = m
-            if (wd := optimizer.defaults.get("weight_decay", None)) is not None:
-                hparams_dict["weight_decay"] = wd
-            if (d := optimizer.defaults.get("dampening", None)) is not None:
-                hparams_dict["dampening"] = d
+        # log extra hparams in optimizer
+        if (m := optimizer.defaults.get("momentum", None)) is not None:
+            hparams_dict["momentum"] = m
+        if (wd := optimizer.defaults.get("weight_decay", None)) is not None:
+            hparams_dict["weight_decay"] = wd
+        if (d := optimizer.defaults.get("dampening", None)) is not None:
+            hparams_dict["dampening"] = d
+
         num_task_learned += 1
 
         return cl_model
